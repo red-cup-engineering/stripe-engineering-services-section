@@ -1,0 +1,10 @@
+#lang rmn/v2
+(map
+  ("type" "StripeWebhookEventAdmissionLaw")
+  ("version" 1)
+  ("provider" "urn:ame:stripe-payment-acceptance-enterprise")
+  ("precondition" "Stripe supplies an untouched request body and endpoint-specific signature within replay tolerance.")
+  ("operation" "The provider verifies before interpretation, deduplicates by Stripe event identity, and records a minimal privacy-preserving event receipt through its hired RWIL/RDF provider.")
+  ("postcondition" "A valid event is acknowledged without assuming order, and only declared event types carry declared consequences.")
+  ("refusal" "Refuse invalid, stale, oversized, or malformed events; never persist raw bodies, buyer data, or invented fulfillment, tax, or accounting consequences.")
+  ("evidence" "RWIL-RDF"))

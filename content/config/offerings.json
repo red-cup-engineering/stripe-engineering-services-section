@@ -1,0 +1,18 @@
+{
+  "merchant": {"legalBody":"emsenn","stripeAccount":"Leader-controlled; identifier intentionally not recorded"},
+  "offerings": [
+    {
+      "id": "stripe-integration-smoke-test",
+      "status": "test-only",
+      "mode": "payment",
+      "currency": "usd",
+      "unitAmount": 100,
+      "name": "Stripe integration smoke test",
+      "description": "Stripe sandbox checkout only. No real charge, product, fulfillment, entitlement, tax position, or refund promise is created.",
+      "quantity": {"minimum":1,"maximum":1},
+      "beneficiarySettlement": "stripe-services-section",
+      "terms": "test-mode-only"
+    }
+  ]
+}
+

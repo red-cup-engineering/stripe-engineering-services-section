@@ -1,0 +1,21 @@
+{
+  "node": "stripe-services-section",
+  "offices": [
+    "content/offices/checkout-session-provisioner.json",
+    "content/offices/stripe-event-receipt-reconciler.json"
+  ],
+  "duties": [
+    "content/duties/provisioning-authorized-checkout-sessions.json",
+    "content/duties/reconciling-verified-stripe-events.json"
+  ],
+  "works": [
+    "content/works/provisioning-authorized-checkout-sessions.json",
+    "content/works/reconciling-verified-stripe-events.json"
+  ],
+  "contracts": [
+    "content/contracts/stripe-checkout-session-creation.rml",
+    "content/contracts/stripe-webhook-event-admission.rml",
+    "content/contracts/executive-office-management-instrument-import.rml"
+  ],
+  "policies": ["content/policies/merchant-authority-and-credentials.json"]
+}

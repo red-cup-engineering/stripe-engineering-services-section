@@ -1,0 +1,62 @@
+{
+  "name": "@red-cup-engineering/stripe-services-section",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A sovereign emsenn-owned Stripe Checkout and verified-event boundary with fixed offerings, idempotency, and provider-local receipts. Owns the Stripe business logic and credentials; the inbound HTTP listener that fronts it is stripe-webhook-receiver-activation in rsc-quiescent.",
+  "bin": {
+    "stripe-payment-acceptance": "./src/cli.mjs"
+  },
+  "exports": {
+    ".": "./src/service.mjs",
+    "./service": "./src/service.mjs",
+    "./law": "./src/law.mjs",
+    "./src/law.mjs": "./src/law.mjs"
+  },
+  "scripts": {
+    "check": "node --check src/law.mjs && node --check src/service.mjs && node --check src/cli.mjs && node --check test/service.test.mjs",
+    "test": "node --test test/service.test.mjs",
+    "verify": "npm run check && npm test"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "dependencies": {
+    "@harmonious-union/executive-office": "0.1.0",
+    "@red-cup-engineering/rmn-semantic-conformance": "6.0.0",
+    "@lenticule-science/rwil-rdf-projection-service": "1.0.2"
+  },
+  "x-agentic-metro-enterprise": {
+    "node-id": "stripe-services-section",
+    "organizational-kind": "sovereign-payment-rail-enterprise",
+    "owners": [
+      "emsenn",
+      "board-of-directors",
+      "executive-office",
+      "web-services-section"
+    ],
+    "legal-merchant": "emsenn",
+    "membrane": {
+      "law": "lib/",
+      "lasting-instances": "content/",
+      "append-only-instances": "data/"
+    },
+    "admission": "an ActivityStreams solicitation for one configured offering, followed by acceptance of the provider-authored request digest, or a Stripe webhook whose signature verifies over the untouched body",
+    "refusal": "unknown or non-live offering, arbitrary caller-supplied price, credential absence, credential/mode mismatch, invalid redirect URL, fabricated provider offer, invalid or stale webhook signature, cross-settlement write, refund, payout, or entitlement mutation",
+    "environment": [
+      "API_KEY_STRIPE or STRIPE_SECRET_KEY",
+      "STRIPE_WEBHOOK_SECRET",
+      "STRIPE_CUSTOMER_CONTRACT_TOKEN"
+    ]
+  },
+  "license": "UNLICENSED",
+  "x-semiotic-voxel": {
+    "profile": "org.harmonious-union.semiotic-voxel.v1",
+    "owner": "red-cup-engineering",
+    "kind": "actor",
+    "actor": "urn:ame:stripe-services-section",
+    "operations": [],
+    "capabilities": [],
+    "package": "@red-cup-engineering/stripe-services-section"
+  }
+}
