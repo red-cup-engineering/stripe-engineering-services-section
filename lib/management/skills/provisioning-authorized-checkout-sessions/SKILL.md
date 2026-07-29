@@ -8,7 +8,7 @@ description: Provision a Stripe-hosted Checkout Session only from an admitted Ac
 Begin with
 `node services/stripe-services-section/src/cli.mjs --operation readiness`
 from the Executive Office repository root. Refuse when the credential
-mode is absent or unknown, when the offering is not active for that mode, or
+mode is absent or unknown, when the offering is not potential for that mode, or
 when live readiness is false for a live request.
 
 The inter-enterprise request is an ActivityStreams `Offer` targeted at
