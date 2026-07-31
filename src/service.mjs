@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { semanticId } from "@red-cup-engineering/rmn-semantic-conformance";
-import { createSettlementStore, relationalRwilDocument } from "@lenticule-science/rwil-rdf-projection-service/client";
+import { createSettlementStore, relationalRwilDocument } from "@lenticule-science/witness-journal-rdf-projection-service/client";
 import { CHECKOUT_CONTRACT, WEBHOOK_CONTRACT } from "./law.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");

@@ -24,7 +24,7 @@
   "dependencies": {
     "@harmonious-union/executive-office": "0.1.0",
     "@red-cup-engineering/rmn-semantic-conformance": "6.0.1",
-    "@lenticule-science/rwil-rdf-projection-service": "1.0.2"
+    "@lenticule-science/witness-journal-rdf-projection-service": "1.0.2"
   },
   "license": "UNLICENSED"
 }

@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { querySettlementRecords } from "@lenticule-science/rwil-rdf-projection-service/client";
-import { startRwilProviderProcess } from "@lenticule-science/rwil-rdf-projection-service/test-provider";
+import { querySettlementRecords } from "@lenticule-science/witness-journal-rdf-projection-service/client";
+import { startRwilProviderProcess } from "@lenticule-science/witness-journal-rdf-projection-service/test-provider";
 
 import { ACTOR, CHECKOUT_CONTRACT, WEBHOOK_CONTRACT, ingestWebhook, invokeCheckout, readiness, solicitCheckout, verifyStripeSignature } from "../src/service.mjs";
 
