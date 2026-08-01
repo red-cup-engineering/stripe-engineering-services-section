@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { semanticId } from "@red-cup-engineering/rmn-semantic-conformance";
-import { createSettlementStore, relationalRwilDocument } from "@lenticule-science/witness-journal-rdf-projection-service/client";
+import { createSettlementStore, relationalWitnessJournalDocument } from "@lenticule-science/witness-journal-rdf-projection-service/client";
 import { CHECKOUT_CONTRACT, WEBHOOK_CONTRACT } from "./law.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -11,7 +11,7 @@ export const ACTOR = "urn:ame:stripe-services-section";
 export { CHECKOUT_CONTRACT, WEBHOOK_CONTRACT };
 const SUPPORTED_EVENTS = new Set(["checkout.session.completed", "checkout.session.expired", "payment_intent.payment_failed", "charge.refunded"]);
 
-export function digest(value) { return semanticId(relationalRwilDocument(value)); }
+export function digest(value) { return semanticId(relationalWitnessJournalDocument(value)); }
 function reply(type, activity, object) { return { "@context": "https://www.w3.org/ns/activitystreams", id: `${activity?.id ?? `urn:request:${Date.now()}`}:${type.toLowerCase()}`, type, actor: ACTOR, target: activity?.actor, inReplyTo: activity?.id, object }; }
 function reject(activity, reason, detail = undefined) { return reply("Reject", activity, { type: "ServiceRefusal", reason, ...(detail === undefined ? {} : { detail }) }); }
 
@@ -70,7 +70,7 @@ export function solicitCheckout(activity, options = {}) {
 
 function evidenceStore(options, env) {
   const settlementRoot = options.root ?? ROOT;
-  return createSettlementStore({ settlementRoot: ROOT, agentUrl: options.agentUrl ?? env.RWIL_RDF_AGENT ?? process.env.RWIL_RDF_AGENT });
+  return createSettlementStore({ settlementRoot: ROOT, agentUrl: options.agentUrl ?? env.WITNESS_JOURNAL_RDF_AGENT ?? process.env.WITNESS_JOURNAL_RDF_AGENT });
 }
 const category = (law, kind) => `${law}.${kind}`;
 async function appendRecord(options, env, now, record, law, kind) { return evidenceStore(options, env).record({ category: category(law, kind), recordedAt: now.toISOString(), record }); }

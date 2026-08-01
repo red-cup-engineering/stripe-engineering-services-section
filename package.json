@@ -1,6 +1,6 @@
 {
   "name": "@red-cup-engineering/stripe-services-section",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "A sovereign emsenn-owned Stripe Checkout and verified-event boundary with fixed offerings, idempotency, and provider-local receipts. Owns the Stripe business logic and credentials; the inbound HTTP listener that fronts it is stripe-webhook-receiver-activation in rsc-quiescent.",
@@ -22,9 +22,9 @@
     "node": ">=22.18"
   },
   "dependencies": {
-    "@harmonious-union/executive-office": "0.1.0",
-    "@red-cup-engineering/rmn-semantic-conformance": "6.0.1",
-    "@lenticule-science/witness-journal-rdf-projection-service": "1.0.2"
+    "@harmonious-union/executive-office": "0.1.1",
+    "@red-cup-engineering/rmn-semantic-conformance": "6.0.2",
+    "@lenticule-science/witness-journal-rdf-projection-service": "1.0.3"
   },
   "license": "UNLICENSED"
 }
