@@ -9,12 +9,10 @@
   },
   "exports": {
     ".": "./src/service.mjs",
-    "./service": "./src/service.mjs",
-    "./law": "./src/law.mjs",
-    "./src/law.mjs": "./src/law.mjs"
+    "./service": "./src/service.mjs"
   },
   "scripts": {
-    "check": "node --check src/law.mjs && node --check src/service.mjs && node --check src/cli.mjs && node --check test/service.test.mjs",
+    "check": "node --check src/service.mjs && node --check src/cli.mjs && node --check test/service.test.mjs",
     "test": "node --test test/service.test.mjs",
     "verify": "npm run check && npm test"
   },

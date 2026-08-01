@@ -4,11 +4,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { semanticId } from "@red-cup-engineering/rmn-semantic-conformance";
 import { createSettlementStore, relationalWitnessJournalDocument } from "@lenticule-science/witness-journal-rdf-projection-service/client";
-import { CHECKOUT_CONTRACT, WEBHOOK_CONTRACT } from "./law.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const ACTOR = "urn:ame:stripe-services-section";
-export { CHECKOUT_CONTRACT, WEBHOOK_CONTRACT };
 const SUPPORTED_EVENTS = new Set(["checkout.session.completed", "checkout.session.expired", "payment_intent.payment_failed", "charge.refunded"]);
 
 export function digest(value) { return semanticId(relationalWitnessJournalDocument(value)); }
@@ -59,13 +57,13 @@ function validateRequest(request, catalog, mode) {
 export function solicitCheckout(activity, options = {}) {
   const catalog = options.catalog ?? loadCatalog(options.catalogPath);
   const mode = credentialMode(stripeKey(options.env ?? process.env));
-  if (activity?.type !== "Offer" || activity?.target !== ACTOR || activity?.object?.contract !== CHECKOUT_CONTRACT) return reject(activity, "invalid-checkout-solicitation-envelope");
+  if (activity?.type !== "Offer" || activity?.target !== ACTOR) return reject(activity, "invalid-checkout-solicitation-envelope");
   if (mode === "absent" || mode === "unknown") return reject(activity, "stripe-credential-unavailable-or-unrecognized");
   const request = requestFrom(activity);
   const admitted = validateRequest(request, catalog, mode);
   if (!admitted.offering) return reject(activity, admitted.reason);
   const requestDigest = digest({ actor: activity.actor, request, offering: admitted.offering });
-  return reply("Offer", activity, { type: "ExecutableServiceOffer", contract: CHECKOUT_CONTRACT, request, requestDigest, offering: admitted.offering, idempotencyKey: requestDigest.replace("ni:///sha-256;", "checkout-"), credentialMode: mode });
+  return reply("Offer", activity, { type: "ExecutableServiceOffer", request, requestDigest, offering: admitted.offering, idempotencyKey: requestDigest.replace("ni:///sha-256;", "checkout-"), credentialMode: mode });
 }
 
 function evidenceStore(options, env) {
@@ -78,7 +76,7 @@ async function appendRecord(options, env, now, record, law, kind) { return evide
 export async function invokeCheckout(activity, options = {}) {
   const env = options.env ?? process.env; const catalog = options.catalog ?? loadCatalog(options.catalogPath); const key = stripeKey(env); const mode = credentialMode(key);
   const offered = activity?.object?.offer;
-  if (activity?.type !== "Accept" || activity?.target !== ACTOR || activity?.object?.contract !== CHECKOUT_CONTRACT || offered?.type !== "Offer" || offered?.actor !== ACTOR || offered?.target !== activity.actor || offered?.object?.contract !== CHECKOUT_CONTRACT) return reject(activity, "invalid-checkout-acceptance-envelope");
+  if (activity?.type !== "Accept" || activity?.target !== ACTOR || offered?.type !== "Offer" || offered?.actor !== ACTOR || offered?.target !== activity.actor) return reject(activity, "invalid-checkout-acceptance-envelope");
   const admitted = validateRequest(offered.object.request, catalog, mode);
   if (!admitted.offering) return reject(activity, admitted.reason);
   const expectedDigest = digest({ actor: activity.actor, request: offered.object.request, offering: admitted.offering });
@@ -97,7 +95,7 @@ export async function invokeCheckout(activity, options = {}) {
   if (!response.ok) return reject(activity, "stripe-api-refusal", { status: response.status, code: body?.error?.code ?? null, type: body?.error?.type ?? null });
   if (typeof body?.id !== "string" || typeof body?.url !== "string") return reject(activity, "stripe-api-incomplete-session");
   const now = options.now ?? new Date(); const receipt = { id: `urn:stripe-checkout-receipt:${body.id}`, type: "StripeCheckoutSessionReceipt", recordedAt: now.toISOString(), legalMerchant: catalog.merchant.legalBody, customerSettlement: activity.actor, offeringId: admitted.offering.id, requestDigest: expectedDigest, stripeSessionId: body.id, stripeMode: mode, amountTotal: body.amount_total ?? admitted.offering.unitAmount * admitted.quantity, currency: body.currency ?? admitted.offering.currency, paymentStatus: body.payment_status ?? "unpaid", status: body.status ?? "open", expiresAt: body.expires_at ?? null, secretRecorded: false, buyerPaymentDataRecorded: false };
-  await appendRecord(options, env, now, receipt, CHECKOUT_CONTRACT, "receipts");
+  await appendRecord(options, env, now, receipt, "stripe-checkout-session-creation", "receipts");
   return reply("Accept", activity, { ...receipt, checkoutUrl: body.url });
 }
 
@@ -109,7 +107,7 @@ export function verifyStripeSignature({ rawBody, signatureHeader, secret, tolera
   const expected = Buffer.from(createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex"), "hex");
   return signatures.some((signature) => { const actual = Buffer.from(signature, "hex"); return actual.length === expected.length && timingSafeEqual(actual, expected); });
 }
-function eventSeen(provider, eventId) { return provider.records(category(WEBHOOK_CONTRACT, "events")).some((record) => record.stripeEventId === eventId); }
+function eventSeen(provider, eventId) { return provider.records(category("stripe-webhook-event-admission", "events")).some((record) => record.stripeEventId === eventId); }
 function projectEvent(event) {
   const object = event?.data?.object ?? {}; const metadata = object.metadata ?? {};
   return { stripeEventId: event.id, eventType: event.type, created: event.created ?? null, livemode: event.livemode ?? null, stripeObjectId: typeof object.id === "string" ? object.id : null, paymentStatus: object.payment_status ?? null, status: object.status ?? null, amountTotal: object.amount_total ?? object.amount ?? null, currency: object.currency ?? null, paymentIntentId: typeof object.payment_intent === "string" ? object.payment_intent : null, requestDigest: metadata.request_digest ?? null, offeringId: metadata.offering_id ?? null, customerSettlement: metadata.customer_settlement ?? null };
@@ -121,8 +119,8 @@ export async function ingestWebhook({ rawBody, signatureHeader }, options = {}) 
   if (!verifyStripeSignature({ rawBody, signatureHeader, secret, toleranceSeconds: options.toleranceSeconds ?? 300, now: nowSeconds })) return { type: "StripeWebhookRefusal", reason: "invalid-or-stale-stripe-signature" };
   let event; try { event = JSON.parse(rawBody); } catch { return { type: "StripeWebhookRefusal", reason: "invalid-json-after-signature-verification" }; }
   if (typeof event?.id !== "string" || typeof event?.type !== "string") return { type: "StripeWebhookRefusal", reason: "invalid-stripe-event-shape" };
-  const provider = evidenceStore(options, env); if (eventSeen(provider, event.id)) return { type: "StripeWebhookReceipt", law: WEBHOOK_CONTRACT, stripeEventId: event.id, duplicate: true, accepted: true };
-  const projection = projectEvent(event); const record = { id: `urn:stripe-event-receipt:${event.id}`, type: "StripeWebhookEventReceipt", law: WEBHOOK_CONTRACT, recordedAt: now.toISOString(), supported: SUPPORTED_EVENTS.has(event.type), ...projection, signatureVerified: true, duplicate: false, rawBodyRecorded: false, buyerPersonalDataRecorded: false, consequence: SUPPORTED_EVENTS.has(event.type) ? "customer-settlement-must-independently-admit" : "ignored-unsupported-event" };
-  await provider.record({ category: category(WEBHOOK_CONTRACT, "events"), recordedAt: now.toISOString(), record });
-  return { type: "StripeWebhookReceipt", law: WEBHOOK_CONTRACT, stripeEventId: event.id, eventType: event.type, supported: record.supported, duplicate: false, accepted: true, consequence: record.consequence };
+  const provider = evidenceStore(options, env); if (eventSeen(provider, event.id)) return { type: "StripeWebhookReceipt", stripeEventId: event.id, duplicate: true, accepted: true };
+  const projection = projectEvent(event); const record = { id: `urn:stripe-event-receipt:${event.id}`, type: "StripeWebhookEventReceipt", recordedAt: now.toISOString(), supported: SUPPORTED_EVENTS.has(event.type), ...projection, signatureVerified: true, duplicate: false, rawBodyRecorded: false, buyerPersonalDataRecorded: false, consequence: SUPPORTED_EVENTS.has(event.type) ? "customer-settlement-must-independently-admit" : "ignored-unsupported-event" };
+  await provider.record({ category: category("stripe-webhook-event-admission", "events"), recordedAt: now.toISOString(), record });
+  return { type: "StripeWebhookReceipt", stripeEventId: event.id, eventType: event.type, supported: record.supported, duplicate: false, accepted: true, consequence: record.consequence };
 }

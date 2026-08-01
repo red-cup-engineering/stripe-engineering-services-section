@@ -12,10 +12,6 @@
     "content/works/provisioning-authorized-checkout-sessions.json",
     "content/works/reconciling-verified-stripe-events.json"
   ],
-  "contracts": [
-    "content/contracts/stripe-checkout-session-creation.rml",
-    "content/contracts/stripe-webhook-event-admission.rml",
-    "content/contracts/executive-office-management-instrument-import.rml"
-  ],
+  "contracts": [],
   "policies": ["content/policies/merchant-authority-and-credentials.json"]
 }
