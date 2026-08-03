@@ -2,14 +2,15 @@ import { readFileSync } from "node:fs";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { semanticId } from "@red-cup-engineering/rmn-semantic-conformance";
+import { EMPTY_WITNESS_ROOT, identifyNormalizedSemanticContent } from "@red-cup-engineering/semantic-content-identify-service";
+import { inferTy } from "@red-cup-engineering/relation-model-notation-typing";
 import { createSettlementStore, relationalWitnessJournalDocument } from "@lenticule-science/witness-journal-rdf-projection-service/client";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const ACTOR = "urn:ame:stripe-services-section";
 const SUPPORTED_EVENTS = new Set(["checkout.session.completed", "checkout.session.expired", "payment_intent.payment_failed", "charge.refunded"]);
 
-export function digest(value) { return semanticId(relationalWitnessJournalDocument(value)); }
+export function digest(value) { const term = relationalWitnessJournalDocument(value); return identifyNormalizedSemanticContent({ objectKind: "stripe.payment-service-record", semanticType: inferTy([], term), term, witnessRoot: EMPTY_WITNESS_ROOT }).token; }
 function reply(type, activity, object) { return { "@context": "https://www.w3.org/ns/activitystreams", id: `${activity?.id ?? `urn:request:${Date.now()}`}:${type.toLowerCase()}`, type, actor: ACTOR, target: activity?.actor, inReplyTo: activity?.id, object }; }
 function reject(activity, reason, detail = undefined) { return reply("Reject", activity, { type: "ServiceRefusal", reason, ...(detail === undefined ? {} : { detail }) }); }
 
