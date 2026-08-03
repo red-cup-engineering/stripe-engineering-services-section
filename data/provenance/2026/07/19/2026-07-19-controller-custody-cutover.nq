@@ -1,4 +1,0 @@
-<urn:ame:stripe-payment-acceptance-enterprise> <urn:emsenn:evm:retired-controller-artifact> <ni:///sha-256;vX-ztk_ZQvHDRAUhYIwRB551xAhb6Kqzbeln5MvAAtI> <urn:ame:stripe-payment-acceptance-enterprise:controller-custody-cutover:eip155-31337> .
-<ni:///sha-256;vX-ztk_ZQvHDRAUhYIwRB551xAhb6Kqzbeln5MvAAtI> <urn:emsenn:evm:retired-path> "data/evm/controller-eip155-31337.env" <urn:ame:stripe-payment-acceptance-enterprise:controller-custody-cutover:eip155-31337> .
-<urn:ame:stripe-payment-acceptance-enterprise> <urn:emsenn:evm:controller-keystore-format> "Ethereum Secret Storage v3" <urn:ame:stripe-payment-acceptance-enterprise:controller-custody-cutover:eip155-31337> .
-<urn:ame:stripe-payment-acceptance-enterprise> <urn:emsenn:evm:controller-chain> <eip155:31337> <urn:ame:stripe-payment-acceptance-enterprise:controller-custody-cutover:eip155-31337> .
