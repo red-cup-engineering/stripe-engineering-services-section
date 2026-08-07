@@ -1,0 +1,8 @@
+{
+  "status": "test-ready-after-credentials",
+  "liveActivation": "refused",
+  "requiredEnvironment": ["API_KEY_STRIPE or STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_CUSTOMER_CONTRACT_TOKEN"],
+  "leaderInputsStillRequiredForLive": ["verified Stripe account and live/restricted-live key", "first real offering and price/currency", "tax/refund/terms", "beneficiary and customer-settlement contract", "public HTTPS endpoint and endpoint-specific webhook secret", "payout destination and dispute/refund authority"],
+  "neverEvidence": "The presence of code or an environment variable is not evidence of a live product, payment, balance, payout, or fulfilled customer outcome."
+}
+
