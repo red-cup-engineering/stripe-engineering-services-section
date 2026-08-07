@@ -1,8 +1,0 @@
-{
-  "kind": "metroplat.contract",
-  "id": "stripe-webhook-event-admission",
-  "precondition": {"id":"signed-raw-stripe-event","description":"Stripe supplies the untouched request body and Stripe-Signature header for the endpoint-specific webhook secret."},
-  "move": {"id":"verify-deduplicate-and-record","domain":"raw-stripe-webhook","codomain":"minimal-event-receipt-or-refusal","partial":false,"deterministic":true,"effects":["provider-local-append"]},
-  "postcondition": {"id":"authenticated-event-witnessed","description":"A valid event is acknowledged, deduplicated by event identifier, and projected into a minimal receipt. Unsupported event types are acknowledged without inventing consequences."},
-  "invariants": ["verify-before-json-interpretation","five-minute-default-replay-tolerance","event-order-not-assumed","event-id-idempotency","no-raw-body-persistence","no-card-or-customer-personal-data-persistence","no-fulfillment-entitlement-tax-or-book-entry-inference"]
-}

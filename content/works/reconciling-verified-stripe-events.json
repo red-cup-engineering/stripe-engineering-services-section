@@ -1,2 +1,0 @@
-{"id":"reconciling-verified-stripe-events","name":"admit one verified Stripe event receipt","from":"an untouched Stripe webhook body and Stripe-Signature header","to":"an idempotent minimal provider-owned event receipt or typed refusal","cost":"signature verification, durable local storage, and reconciliation attention","otherwise":"customer settlements cannot distinguish authenticated provider events from fabricated or replayed messages"}
-
