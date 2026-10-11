@@ -1,6 +1,9 @@
 ---
 name: reconciling-verified-stripe-events
 description: Verify and reconcile Stripe webhook events into minimal provider-owned receipts. Use when handling an untouched webhook body and Stripe-Signature header, testing replay/idempotency behavior, or reviewing the event journal; never parse before verification or infer fulfillment, entitlement, tax, refund, or customer book entries.
+requires-capabilities:
+  - ledger-readings
+  - ledger-reconciliation-proposal
 ---
 
 # Reconciling verified Stripe events

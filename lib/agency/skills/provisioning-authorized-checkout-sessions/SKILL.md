@@ -1,6 +1,9 @@
 ---
 name: provisioning-authorized-checkout-sessions
-description: Provision a Stripe-hosted Checkout Session only from an admitted ActivityStreams request for a fixed Leader-authorized local offering. Use for readiness checks, checkout-session solicitations, acceptance, and provider-local receipt review; never use it to choose a price, activate live mode, refund, or infer fulfillment.
+description: Provision a Stripe-hosted Checkout Session only from an admitted ActivityStreams request for a fixed catalog offering. Use for readiness checks, checkout-session solicitations, acceptance, and provider-local receipt review; never use it to choose a price, activate live mode, refund, or infer fulfillment.
+requires-capabilities:
+  - process-arrival
+  - ledger-readings
 ---
 
 # Provisioning authorized Checkout Sessions

@@ -1,0 +1,17 @@
+{
+  "node": "stripe-services-section",
+  "offices": [
+    "lib/agency/offices/checkout-session-provisioner.json",
+    "lib/agency/offices/stripe-event-receipt-reconciler.json"
+  ],
+  "duties": [
+    "lib/agency/duties/provisioning-authorized-checkout-sessions.json",
+    "lib/agency/duties/reconciling-verified-stripe-events.json"
+  ],
+  "works": [
+    "lib/agency/works/provisioning-authorized-checkout-sessions.json",
+    "lib/agency/works/reconciling-verified-stripe-events.json"
+  ],
+  "contracts": [],
+  "policies": ["content/policies/merchant-authority-policy.json"]
+}
