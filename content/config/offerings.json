@@ -1,5 +1,5 @@
 {
-  "merchant": {"legalBody":"emsenn","stripeAccount":"Leader-controlled; identifier intentionally not recorded"},
+  "merchant": {"legalBody":"emsenn","stripeAccount":"Identifier intentionally not recorded"},
   "offerings": [
     {
       "id": "stripe-integration-smoke-test",
@@ -12,7 +12,18 @@
       "quantity": {"minimum":1,"maximum":1},
       "beneficiarySettlement": "stripe-services-section",
       "terms": "test-mode-only"
+    },
+    {
+      "id": "general-tip",
+      "status": "test-only",
+      "mode": "payment",
+      "currency": "usd",
+      "customerChosenAmount": {"minimum": 100, "maximum": 100000, "preset": 500},
+      "name": "Tip",
+      "description": "A tip: money sent because you want to, with no offer, product, entitlement, tax position, or refund promise created (2026-09-05 ruling, accept-tips-through-every-endpoint). The amount is chosen by the customer in Stripe Checkout.",
+      "quantity": {"minimum":1,"maximum":1},
+      "beneficiarySettlement": "stripe-services-section",
+      "terms": "test-mode-only; no product, entitlement, tax position, or refund promise is created; the customer chooses the amount at checkout (Stripe's custom_unit_amount, https://docs.stripe.com/payments/checkout/pay-what-you-want, fetched 2026-09-05)"
     }
   ]
 }
-

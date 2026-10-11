@@ -1,30 +1,29 @@
 {
   "name": "@red-cup-engineering/stripe-services-section",
-  "version": "0.1.3",
-  "private": true,
+  "version": "0.1.9",
   "type": "module",
-  "description": "A sovereign emsenn-owned Stripe Checkout and verified-event boundary with fixed offerings, idempotency, and provider-local receipts. Owns the Stripe business logic and credentials; the inbound HTTP listener that fronts it is stripe-webhook-receiver-activation in rsc-quiescent.",
+  "description": "A sovereign Group-owned Stripe Checkout and verified-event boundary with fixed offerings, idempotency, and provider-local receipts. Owns the Stripe business logic and credentials; the inbound HTTP listener that fronts it is stripe-webhook-receiver-activation in rsc-quiescent.",
   "bin": {
     "stripe-payment-acceptance": "./src/cli.mjs"
   },
   "exports": {
     ".": "./src/service.mjs",
-    "./service": "./src/service.mjs"
+    "./service": "./src/service.mjs",
+    "./provisioning": "./src/provisioning.mjs"
   },
   "scripts": {
-    "check": "node --check src/service.mjs && node --check src/cli.mjs && node --check test/service.test.mjs",
-    "test": "node --test test/service.test.mjs",
-    "verify": "npm run check && npm test"
+    "check": "node --check src/service.mjs && node --check src/cli.mjs && node --check src/provisioning.mjs && node --check test/service.test.mjs",
+    "test": "node --test test/service.test.mjs"
   },
   "engines": {
     "node": ">=22.18"
   },
   "dependencies": {
-    "@red-cup-engineering/semantic-content-identify-service": "0.2.2",
-    "@red-cup-engineering/relation-model-notation-typing": "0.0.1",
-    "@harmonious-union/executive-office": "0.1.1",
-    "@red-cup-engineering/rmn-semantic-conformance": "6.0.2",
-    "@lenticule-science/witness-journal-rdf-projection-service": "1.0.3"
+    "@red-cup-engineering/assisted-browser-services-section": "workspace:*",
+    "@red-cup-engineering/semiotic-eavt-services-section": "workspace:*",
+    "@red-cup-engineering/computer-content-engineering-services-section": "workspace:*",
+    "@red-cup-engineering/json-schema-services-section": "workspace:*",
+    "@red-cup-engineering/witness-journal-document-service": "workspace:*"
   },
   "license": "UNLICENSED"
 }
