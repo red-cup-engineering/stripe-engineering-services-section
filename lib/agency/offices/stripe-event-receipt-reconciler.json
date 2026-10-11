@@ -6,7 +6,5 @@
   "deontic-profile": {"reconciling-verified-stripe-events": "duty"},
   "bears-duty": ["emsenn/duty/reconciling-verified-stripe-events"],
   "authority-scope": ["./"],
-  "jurisdiction": "stripe-services-section",
-  "x-provenance": {"recorded-by": "executive-officer-to-the-leader and Codex", "recorded-on": "2026-07-18", "authority": "Leader commission to establish Stripe payment acceptance through emsenn as legal merchant"}
+  "jurisdiction": "stripe-services-section"
 }
-
