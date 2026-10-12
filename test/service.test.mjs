@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createSemanticRecordJournal } from "@red-cup-engineering/semiotic-eavt-services-section/record-semantic-record";
+import { each } from "@red-cup-engineering/semiotic-eavt-services-section/store";
 
 import { ACTOR, buildCheckoutSessionForm, ingestWebhook, invokeCheckout, projectEvent, readiness, solicitCheckout, validateOfferingShape, verifyStripeSignature } from "../src/service.mjs";
 
@@ -20,7 +20,7 @@ const solicitation = () => ({ "@context": "https://www.w3.org/ns/activitystreams
 const subscriptionOffering = { id: "smoke-subscription", status: "test-only", mode: "subscription", currency: "usd", unitAmount: 500, name: "Smoke subscription", description: "test", quantity: { minimum: 1, maximum: 1 }, recurring: { interval: "month" } };
 const subscriptionCatalog = { merchant: { legalBody: "emsenn" }, offerings: [...catalog.offerings, subscriptionOffering] };
 const subscriptionSolicitation = () => ({ "@context": "https://www.w3.org/ns/activitystreams", id: "urn:test:request-subscription", type: "Offer", actor: "urn:ame:customer", target: ACTOR, object: { type: "ServiceSolicitation", request: { offeringId: "smoke-subscription", quantity: 1, successUrl: "https://example.test/success", cancelUrl: "https://example.test/cancel", customerReference: "order-2" } } });
-function records(root, category) { return createSemanticRecordJournal({ root, objectKind: "stripe.payment-service-record" }).query({ category }).map(({ record }) => record); }
+function records(root, category) { return [...each(root, category.replace(".", "-"))].map(({ record }) => record); }
 
 test("readiness reveals status but never credential bytes", () => {
   const value = readiness({ env: { API_KEY_STRIPE: "sk_test_secret", STRIPE_WEBHOOK_SECRET: "whsec_secret" }, catalog });
