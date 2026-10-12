@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { EMPTY_WITNESS_ROOT, identifyJsonSemanticContent } from "@red-cup-engineering/computer-content-address-engineering-services-section/semantic-content-identity";
-import { createSemanticRecordJournal } from "@red-cup-engineering/semiotic-eavt-services-section/record-semantic-record";
+import { each, put } from "@red-cup-engineering/semiotic-eavt-services-section/store";
 
 let cachedRoot;
 /**
@@ -135,7 +135,7 @@ export function solicitCheckout(activity, options = {}) {
  * Resolves the receipt/event journal a call should use: an injected
  * `{ record(entry), query({category}) }` store (a Worker's own KV/D1/etc
  * adapter) when `options.store` is given, else the on-disk
- * WitnessJournal-backed journal. The disk fallback is the only path that
+ * semiotic-eavt store, a category being the store type `<law>-<kind>`. The disk fallback is the only path that
  * touches the filesystem, so a caller that always supplies `options.store`
  * never needs `node:fs`.
  * @param {{store?: {record: Function, query: Function}, root?: string}} options
@@ -143,7 +143,11 @@ export function solicitCheckout(activity, options = {}) {
  */
 function evidenceStore(options) {
   if (options.store) return options.store;
-  return createSemanticRecordJournal({ root: options.root ?? packageRoot(), objectKind: "stripe.payment-service-record" });
+  const root = options.root ?? packageRoot(), typeOf = (name) => name.replace(".", "-");
+  return {
+    record: ({ category: name, record }) => ({ id: put(root, typeOf(name), record) }),
+    query: ({ category: name }) => [...each(root, typeOf(name))].map(({ address, record }) => ({ id: address, record })),
+  };
 }
 const category = (law, kind) => `${law}.${kind}`;
 async function appendRecord(options, _env, now, record, law, kind) { return evidenceStore(options).record({ category: category(law, kind), recordedAt: now.toISOString(), record, told: { for: true, against: false } }); }
