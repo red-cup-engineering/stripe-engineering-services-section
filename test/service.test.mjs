@@ -7,7 +7,7 @@ import test from "node:test";
 
 import { each } from "@red-cup-engineering/semiotic-eavt-services-section/store";
 
-import { ACTOR, buildCheckoutSessionForm, ingestWebhook, invokeCheckout, projectEvent, readiness, solicitCheckout, validateOfferingShape, verifyStripeSignature } from "../src/service.mjs";
+import { ACTOR, buildCheckoutSessionForm, ingestWebhook, invokeCheckout, projectEvent, readiness, solicitCheckout, validateLiveOffering, validateOfferingShape, verifyStripeSignature } from "../src/service.mjs";
 import { CHECKOUT_EVENTS } from "../src/checkout-events.mjs";
 
 test("paid Checkout completion events include delayed success and retain its true type", async () => {
@@ -278,3 +278,105 @@ test("invocation of the tip offering posts custom_unit_amount and records a rece
   assert.equal(store.rows[0].record.offeringId, "tip");
 });
 
+
+const policyQualifiedLiveOffering = {
+  ...catalog.offerings[0], id: "live-product", status: "live",
+  unitAmount: 1500, beneficiarySettlement: "house-product-seller",
+  terms: "customer-contract:live-product:v1", taxPolicy: "tax-policy:v1",
+  refundPolicy: "refund-policy:v1",
+};
+const qualifiedLiveCatalog = { merchant: { legalBody: "emsenn" }, offerings: [policyQualifiedLiveOffering] };
+const qualifiedLiveEnv = {
+  STRIPE_SECRET_KEY: "rk_live_offline_fixture", STRIPE_WEBHOOK_SECRET: "whsec_offline_fixture",
+  STRIPE_CUSTOMER_CONTRACT_TOKEN: "contract-accepted-offline",
+};
+const liveSolicitation = () => {
+  const activity = solicitation();
+  activity.object.request.offeringId = policyQualifiedLiveOffering.id;
+  return activity;
+};
+
+test("live merchant readiness requires more than a live key and a live catalog marker", () => {
+  const incomplete = { ...policyQualifiedLiveOffering, refundPolicy: undefined };
+  assert.deepEqual(validateLiveOffering(incomplete), { valid: false, reason: "missing-live-offering-refundPolicy" });
+  assert.equal(readiness({ env: qualifiedLiveEnv, catalog: { merchant: { legalBody: "emsenn" }, offerings: [incomplete] } }).liveReady, false);
+  assert.equal(readiness({ env: { ...qualifiedLiveEnv, STRIPE_WEBHOOK_SECRET: undefined }, catalog: qualifiedLiveCatalog }).liveReady, false);
+  assert.equal(readiness({ env: { ...qualifiedLiveEnv, STRIPE_CUSTOMER_CONTRACT_TOKEN: undefined }, catalog: qualifiedLiveCatalog }).liveReady, false);
+  const qualified = readiness({ env: qualifiedLiveEnv, catalog: qualifiedLiveCatalog });
+  assert.equal(qualified.liveReady, true);
+  assert.deepEqual(qualified.liveQualifications, [{ id: "live-product", valid: true }]);
+  assert.equal(qualified.secretsDisclosed, false);
+  assert.doesNotMatch(JSON.stringify(qualified), /rk_live_offline_fixture|whsec_offline_fixture|contract-accepted-offline/u);
+  for (const field of ["beneficiarySettlement", "terms", "taxPolicy", "refundPolicy"]) {
+    assert.equal(validateLiveOffering({ ...policyQualifiedLiveOffering, [field]: " " }).reason,
+      "missing-live-offering-" + field);
+  }
+});
+
+test("live checkout solicitation and invocation both refuse absent webhook or customer contract", async () => {
+  const request = liveSolicitation(), allowed = solicitCheckout(request, { env: qualifiedLiveEnv, catalog: qualifiedLiveCatalog });
+  assert.equal(allowed.type, "Offer");
+  const accepted = { id: "urn:test:live-accept", type: "Accept", actor: request.actor, target: ACTOR, object: { offer: allowed } };
+  for (const name of ["STRIPE_WEBHOOK_SECRET", "STRIPE_CUSTOMER_CONTRACT_TOKEN"]) {
+    const env = { ...qualifiedLiveEnv, [name]: undefined };
+    const solicitationRefusal = solicitCheckout(request, { env, catalog: qualifiedLiveCatalog });
+    assert.equal(solicitationRefusal.type, "Reject");
+    assert.equal(solicitationRefusal.object.reason, "stripe-live-activation-not-ready");
+    let providerRequests = 0;
+    const store = memoryStore();
+    const invocationRefusal = await invokeCheckout(accepted, {
+      env, catalog: qualifiedLiveCatalog, store,
+      fetchImpl: async () => { providerRequests += 1; throw new Error("must not contact Stripe"); },
+    });
+    assert.equal(invocationRefusal.type, "Reject");
+    assert.equal(invocationRefusal.object.reason, "stripe-live-activation-not-ready");
+    assert.equal(providerRequests, 0);
+    assert.equal(store.rows.length, 0);
+  }
+});
+
+test("one qualified offering cannot authorize an incomplete second live offering", () => {
+  const broken = { ...policyQualifiedLiveOffering, id: "other-live", refundPolicy: undefined };
+  const mixedCatalog = { ...qualifiedLiveCatalog, offerings: [policyQualifiedLiveOffering, broken] };
+  assert.equal(readiness({ env: qualifiedLiveEnv, catalog: mixedCatalog }).liveReady, true);
+  const request = liveSolicitation();
+  request.object.request.offeringId = broken.id;
+  const refused = solicitCheckout(request, { env: qualifiedLiveEnv, catalog: mixedCatalog });
+  assert.equal(refused.type, "Reject");
+  assert.equal(refused.object.reason, "missing-live-offering-refundPolicy");
+  for (const [change, reason] of [
+    [{ unitAmount: 0 }, "invalid-live-offering-price"],
+    [{ currency: "US D" }, "invalid-live-offering-currency"],
+    [{ quantity: { minimum: 0, maximum: 0 } }, "invalid-live-offering-quantity"],
+  ]) {
+    const validation = validateLiveOffering({ ...policyQualifiedLiveOffering, ...change });
+    assert.equal(validation.valid, false);
+    assert.equal(validation.reason, reason);
+  }
+});
+
+test("qualified live checkout preserves the existing idempotent session path with an injected provider", async () => {
+  const request = liveSolicitation(), offered = solicitCheckout(request, { env: qualifiedLiveEnv, catalog: qualifiedLiveCatalog });
+  assert.equal(offered.type, "Offer");
+  const store = memoryStore();
+  let calls = 0;
+  const response = await invokeCheckout({
+    id: "urn:test:accepted-live", type: "Accept", actor: request.actor, target: ACTOR, object: { offer: offered },
+  }, {
+    env: qualifiedLiveEnv, catalog: qualifiedLiveCatalog, store,
+    now: new Date("2026-10-13T12:00:00Z"),
+    fetchImpl: async (_url, options) => {
+      calls += 1;
+      assert.match(String(options.body), /line_items%5B0%5D%5Bprice_data%5D%5Bunit_amount%5D=1500/u);
+      return { ok: true, status: 200, json: async () => ({
+        id: "cs_offline_live_fixture", url: "https://checkout.stripe.com/c/pay/offline-fixture",
+        amount_total: 1500, currency: "usd", payment_status: "unpaid", status: "open",
+      }) };
+    },
+  });
+  assert.equal(response.type, "Accept");
+  assert.equal(calls, 1);
+  assert.equal(store.rows.length, 1);
+  assert.equal(store.rows[0].record.stripeMode, "live");
+  assert.equal(store.rows[0].record.paymentStatus, "unpaid");
+});

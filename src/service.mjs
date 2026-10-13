@@ -53,6 +53,8 @@ export function loadCatalog(path = join(packageRoot(), "content/config/offerings
 function stripeKey(env) { return env.API_KEY_STRIPE || env.STRIPE_SECRET_KEY || ""; }
 export function readiness({ env = process.env, catalog = loadCatalog() } = {}) {
   const mode = credentialMode(stripeKey(env));
+  const liveOfferings = catalog.offerings.filter((offering) => offering.status === "live");
+  const liveQualifications = liveOfferings.map((offering) => ({ id: offering.id, ...validateLiveOffering(offering) }));
   return {
     type: "StripePaymentAcceptanceReadiness",
     actor: ACTOR,
@@ -61,7 +63,11 @@ export function readiness({ env = process.env, catalog = loadCatalog() } = {}) {
     webhookSecretPresent: Boolean(env.STRIPE_WEBHOOK_SECRET),
     customerContractTokenPresent: Boolean(env.STRIPE_CUSTOMER_CONTRACT_TOKEN),
     offerings: catalog.offerings.map(({ id, status, mode: offeringMode, currency, unitAmount, recurring, customerChosenAmount }) => ({ id, status, mode: offeringMode, currency, unitAmount, ...(recurring ? { recurring } : {}), ...(customerChosenAmount ? { customerChosenAmount } : {}) })),
-    liveReady: mode === "live" && catalog.offerings.some((offering) => offering.status === "live") && Boolean(env.STRIPE_WEBHOOK_SECRET) && Boolean(env.STRIPE_CUSTOMER_CONTRACT_TOKEN),
+    liveReadinessBasis: "local-policy-only; provider account, payout and webhook delivery still require independent receiving",
+    liveQualifications,
+    liveReady: mode === "live" && Boolean(env.STRIPE_WEBHOOK_SECRET) && Boolean(env.STRIPE_CUSTOMER_CONTRACT_TOKEN)
+      && typeof catalog.merchant?.legalBody === "string" && catalog.merchant.legalBody.trim() !== ""
+      && liveQualifications.some((qualification) => qualification.valid),
     secretsDisclosed: false
   };
 }
@@ -105,6 +111,31 @@ export function validateOfferingShape(offering) {
   return { valid: true };
 }
 
+/** Live catalog admission applies the merchant-authority policy *in addition*
+ * to Stripe's recurring/custom-amount shape check. A live key is never by
+ * itself authority to charge a customer. No provider secrets are inspected. */
+export function validateLiveOffering(offering) {
+  const shape = validateOfferingShape(offering);
+  if (!shape.valid) return shape;
+  if (offering?.status !== "live") return { valid: false, reason: "offering-is-not-live" };
+  if (!["payment", "subscription"].includes(offering.mode)) return { valid: false, reason: "invalid-live-offering-mode" };
+  if (typeof offering.currency !== "string" || !/^[a-z]{3}$/u.test(offering.currency)) return { valid: false, reason: "invalid-live-offering-currency" };
+  if (offering.customerChosenAmount === undefined &&
+      (!Number.isSafeInteger(offering.unitAmount) || offering.unitAmount < 1)) {
+    return { valid: false, reason: "invalid-live-offering-price" };
+  }
+  if (!Number.isSafeInteger(offering.quantity?.minimum) || !Number.isSafeInteger(offering.quantity?.maximum)
+      || offering.quantity.minimum < 1 || offering.quantity.maximum < offering.quantity.minimum) {
+    return { valid: false, reason: "invalid-live-offering-quantity" };
+  }
+  for (const field of ["beneficiarySettlement", "terms", "taxPolicy", "refundPolicy"]) {
+    if (typeof offering[field] !== "string" || offering[field].trim() === "") {
+      return { valid: false, reason: "missing-live-offering-" + field };
+    }
+  }
+  return { valid: true };
+}
+
 function validateRequest(request, catalog, mode) {
   if (!request || typeof request !== "object") return { reason: "invalid-checkout-request" };
   const offering = catalog.offerings.find((candidate) => candidate.id === request.offeringId);
@@ -113,6 +144,10 @@ function validateRequest(request, catalog, mode) {
   if (!shape.valid) return { reason: shape.reason };
   if (offering.status !== "live" && !(offering.status === "test-only" && mode === "test")) return { reason: "offering-not-active-for-credential-mode" };
   if (mode === "live" && offering.status !== "live") return { reason: "live-credential-refused-for-non-live-offering" };
+  if (mode === "live") {
+    const qualified = validateLiveOffering(offering);
+    if (!qualified.valid) return { reason: qualified.reason };
+  }
   if (!validUrl(request.successUrl) || !validUrl(request.cancelUrl)) return { reason: "invalid-redirect-url" };
   if (typeof request.customerReference !== "string" || request.customerReference.length < 1 || request.customerReference.length > 200) return { reason: "invalid-customer-reference" };
   const quantity = request.quantity ?? 1;
@@ -128,6 +163,7 @@ export function solicitCheckout(activity, options = {}) {
   const request = requestFrom(activity);
   const admitted = validateRequest(request, catalog, mode);
   if (!admitted.offering) return reject(activity, admitted.reason);
+  if (mode === "live" && !readiness({ env: options.env ?? process.env, catalog }).liveReady) return reject(activity, "stripe-live-activation-not-ready");
   const requestDigest = digest({ actor: activity.actor, request, offering: admitted.offering });
   return reply("Offer", activity, { type: "ExecutableServiceOffer", request, requestDigest, offering: admitted.offering, idempotencyKey: requestDigest.replace("ni:///sha-256;", "checkout-"), credentialMode: mode });
 }
@@ -195,6 +231,7 @@ export async function invokeCheckout(activity, options = {}) {
   if (activity?.type !== "Accept" || activity?.target !== ACTOR || offered?.type !== "Offer" || offered?.actor !== ACTOR || offered?.target !== activity.actor) return reject(activity, "invalid-checkout-acceptance-envelope");
   const admitted = validateRequest(offered.object.request, catalog, mode);
   if (!admitted.offering) return reject(activity, admitted.reason);
+  if (mode === "live" && !readiness({ env, catalog }).liveReady) return reject(activity, "stripe-live-activation-not-ready");
   const expectedDigest = digest({ actor: activity.actor, request: offered.object.request, offering: admitted.offering });
   if (offered.object.requestDigest !== expectedDigest || offered.object.idempotencyKey !== expectedDigest.replace("ni:///sha-256;", "checkout-")) return reject(activity, "provider-offer-digest-mismatch");
   const request = offered.object.request;
