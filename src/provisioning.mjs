@@ -21,7 +21,8 @@ import { stepGuide } from "@red-cup-engineering/assisted-browser-services-sectio
  * and the surface only checks that it is present.
  */
 export const CHECKOUT_KEY_PERMISSIONS = Object.freeze(["rak_checkout_session_write"]);
-export const CHECKOUT_EVENTS = Object.freeze(["checkout.session.completed"]);
+import { CHECKOUT_EVENTS } from "./checkout-events.mjs";
+export { CHECKOUT_EVENTS } from "./checkout-events.mjs";
 export const SECRET_NAMES = Object.freeze({ key: "STRIPE_SECRET_KEY", webhook: "STRIPE_WEBHOOK_SECRET", contract: "STRIPE_CUSTOMER_CONTRACT_TOKEN" });
 
 const KEY_PATTERN = Object.freeze({ live: /^rk_live_[A-Za-z0-9]{20,}$/u, test: /^rk_test_[A-Za-z0-9]{20,}$/u });
@@ -104,9 +105,9 @@ export async function armCheckout({ surface, webhookUrl, merchant, mode = "live"
     if (needed.has("webhook")) {
       await page.goto(dashboardUrl(mode, "/webhooks"), { waitUntil: "domcontentloaded", timeout: 60_000 });
       await keep("webhook", await obtain(
-        `Add the webhook destination that tells ${surface} a checkout was paid: events from your account, the one event below, sent to a webhook endpoint at the URL below. Then open the destination, reveal its signing secret, and paste it here.`,
+        `Add the webhook destination that tells ${surface} a checkout was paid: events from your account, both events below, sent to a webhook endpoint at the URL below. Then open the destination, reveal its signing secret, and paste it here.`,
         {
-          values: [{ label: "Endpoint URL", value: endpoint.href }, ...CHECKOUT_EVENTS.map((event) => ({ label: "Event (the only one)", value: event })), { label: "Description", value: `${surface} paid checkouts` }],
+          values: [{ label: "Endpoint URL", value: endpoint.href }, ...CHECKOUT_EVENTS.map((event) => ({ label: "Event", value: event })), { label: "Description", value: `${surface} paid checkouts` }],
           labels: ["Use this secret", "Stop"],
           input: { label: "Signing secret (whsec_…)", pattern: WEBHOOK_SECRET_PATTERN, secret: true, placeholder: "whsec_…" },
         },
@@ -131,3 +132,4 @@ export async function armCheckout({ surface, webhookUrl, merchant, mode = "live"
     await close();
   }
 }
+

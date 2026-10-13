@@ -9,10 +9,11 @@
   "exports": {
     ".": "./src/service.mjs",
     "./service": "./src/service.mjs",
+    "./checkout-events": "./src/checkout-events.mjs",
     "./provisioning": "./src/provisioning.mjs"
   },
   "scripts": {
-    "check": "node --check src/service.mjs && node --check src/cli.mjs && node --check src/provisioning.mjs && node --check test/service.test.mjs",
+    "check": "node --check src/checkout-events.mjs && node --check src/service.mjs && node --check src/cli.mjs && node --check src/provisioning.mjs && node --check test/service.test.mjs",
     "test": "node --test test/service.test.mjs"
   },
   "engines": {
@@ -27,3 +28,4 @@
   },
   "license": "UNLICENSED"
 }
+

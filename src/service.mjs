@@ -1,3 +1,4 @@
+import { CHECKOUT_EVENTS } from "./checkout-events.mjs";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
@@ -20,7 +21,7 @@ function packageRoot() {
 }
 export const ACTOR = "urn:ame:stripe-services-section";
 const SUPPORTED_EVENTS = new Set([
-  "checkout.session.completed", "checkout.session.expired", "payment_intent.payment_failed", "charge.refunded",
+  ...CHECKOUT_EVENTS, "checkout.session.expired", "payment_intent.payment_failed", "charge.refunded",
   "invoice.paid", "invoice.payment_failed",
   "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"
 ]);
@@ -257,3 +258,4 @@ export async function ingestWebhook({ rawBody, signatureHeader }, options = {}) 
   await provider.record({ category: category("stripe-webhook-event-admission", "events"), recordedAt: now.toISOString(), record, told: { for: true, against: false } });
   return { type: "StripeWebhookReceipt", stripeEventId: event.id, eventType: event.type, supported: record.supported, duplicate: false, accepted: true, consequence: record.consequence };
 }
+

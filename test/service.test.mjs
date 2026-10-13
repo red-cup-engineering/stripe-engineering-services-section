@@ -8,6 +8,22 @@ import test from "node:test";
 import { each } from "@red-cup-engineering/semiotic-eavt-services-section/store";
 
 import { ACTOR, buildCheckoutSessionForm, ingestWebhook, invokeCheckout, projectEvent, readiness, solicitCheckout, validateOfferingShape, verifyStripeSignature } from "../src/service.mjs";
+import { CHECKOUT_EVENTS } from "../src/checkout-events.mjs";
+
+test("paid Checkout completion events include delayed success and retain its true type", async () => {
+  assert.deepEqual(CHECKOUT_EVENTS, ["checkout.session.completed", "checkout.session.async_payment_succeeded"]);
+  assert.equal(Object.isFrozen(CHECKOUT_EVENTS), true);
+  const rawBody = JSON.stringify({ id: "evt_delayed_fixture", type: "checkout.session.async_payment_succeeded", livemode: false, data: { object: { id: "cs_fixture", payment_status: "paid", status: "complete", amount_total: 1200, currency: "usd" } } });
+  const timestamp = Math.floor(Date.now() / 1000), secret = "offline-delayed-fixture";
+  const signatureHeader = `t=${timestamp},v1=${createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex")}`;
+  const records = [];
+  const result = await ingestWebhook({ rawBody, signatureHeader }, { env: { STRIPE_WEBHOOK_SECRET: secret }, store: { query: () => [], async record(value) { records.push(value); } } });
+  assert.equal(result.supported, true);
+  assert.equal(result.eventType, "checkout.session.async_payment_succeeded");
+  assert.equal(records[0].record.eventType, result.eventType);
+  assert.equal(records[0].record.livemode, false);
+  assert.equal(records[0].record.amountTotal, 1200);
+});
 
 function memoryStore() {
   const rows = [];
@@ -261,3 +277,4 @@ test("invocation of the tip offering posts custom_unit_amount and records a rece
   assert.equal(store.rows[0].record.amountTotal, 750);
   assert.equal(store.rows[0].record.offeringId, "tip");
 });
+
