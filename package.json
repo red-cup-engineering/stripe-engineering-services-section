@@ -1,6 +1,6 @@
 {
   "name": "@red-cup-engineering/stripe-services-section",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "type": "module",
   "description": "A sovereign Group-owned Stripe Checkout and verified-event boundary with fixed offerings, idempotency, and provider-local receipts. Owns the Stripe business logic and credentials; the inbound HTTP listener that fronts it is stripe-webhook-receiver-activation in rsc-quiescent.",
   "bin": {
@@ -20,12 +20,19 @@
     "node": ">=22.18"
   },
   "dependencies": {
-    "@red-cup-engineering/assisted-browser-services-section": "workspace:*",
-    "@red-cup-engineering/semiotic-eavt-services-section": "workspace:*",
-    "@red-cup-engineering/json-schema-services-section": "workspace:*",
-    "@red-cup-engineering/witness-journal-document-service": "workspace:*",
-    "@red-cup-engineering/computer-content-address-engineering-services-section": "workspace:*"
+    "@red-cup-engineering/assisted-browser-services-section": "0.2.1",
+    "@red-cup-engineering/semiotic-eavt-services-section": "0.1.0",
+    "@red-cup-engineering/json-schema-services-section": "0.5.0",
+    "@red-cup-engineering/witness-journal-document-service": "0.1.1",
+    "@red-cup-engineering/computer-content-address-engineering-services-section": "0.2.0"
   },
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "private": false,
+  "files": [
+    "package.json",
+    "README*",
+    "LICENSE*",
+    "src",
+    "content/config"
+  ]
 }
-
