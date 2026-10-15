@@ -24,7 +24,8 @@
     "@red-cup-engineering/semiotic-eavt-services-section": "0.1.0",
     "@red-cup-engineering/json-schema-services-section": "0.5.0",
     "@red-cup-engineering/witness-journal-document-service": "0.1.1",
-    "@red-cup-engineering/computer-content-address-engineering-services-section": "0.2.0"
+    "@red-cup-engineering/computer-content-address-engineering-services-section": "0.2.0",
+    "@red-cup-engineering/computer-data-engineering-services-section": "0.2.0"
   },
   "license": "UNLICENSED",
   "private": false,
