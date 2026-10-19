@@ -1,6 +1,6 @@
 {
   "name": "@red-cup-engineering/stripe-services-section",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "type": "module",
   "description": "A sovereign Group-owned Stripe Checkout and verified-event boundary with fixed offerings, idempotency, and provider-local receipts. Owns the Stripe business logic and credentials; the inbound HTTP listener that fronts it is stripe-webhook-receiver-activation in rsc-quiescent.",
   "repository": {
@@ -14,11 +14,12 @@
     ".": "./src/service.mjs",
     "./service": "./src/service.mjs",
     "./checkout-events": "./src/checkout-events.mjs",
-    "./provisioning": "./src/provisioning.mjs"
+    "./provisioning": "./src/provisioning.mjs",
+    "./metroplat": "./src/metroplat.mjs"
   },
   "scripts": {
-    "check": "node --check src/checkout-events.mjs && node --check src/service.mjs && node --check src/cli.mjs && node --check src/provisioning.mjs && node --check test/service.test.mjs",
-    "test": "node --test test/service.test.mjs"
+    "check": "node --check src/checkout-events.mjs && node --check src/service.mjs && node --check src/cli.mjs && node --check src/provisioning.mjs && node --check test/service.test.mjs && node --check src/metroplat.mjs && node --check test/metroplat.test.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "engines": {
     "node": ">=22.18"
@@ -29,7 +30,8 @@
     "@red-cup-engineering/computer-content-address-engineering-services-section": "0.2.0",
     "@red-cup-engineering/computer-data-engineering-services-section": "0.2.0",
     "@red-cup-engineering/assisted-browser-services-section": "0.2.2",
-    "@red-cup-engineering/witness-journal-document-service": "0.1.2"
+    "@red-cup-engineering/witness-journal-document-service": "0.1.2",
+    "@red-cup-engineering/computer-system-engine": "0.1.7"
   },
   "license": "UNLICENSED",
   "private": false,
