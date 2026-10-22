@@ -288,6 +288,11 @@ function signedEventPriceIdentities(eventType,object){
   stripeProductIdsObserved:[...products].sort(),
   stripeLineItemCoverage:container.has_more===false?'complete':'possibly-partial'};
 }
+/** Stripe API invoice events use amount_paid, amount_due, total and
+ * amount_remaining. These are invoice-level source numbers, not the Checkout
+ * amount_total, a subscription-specific allocation, fees or settled cash. */
+const invoiceMinor=(value)=>Number.isSafeInteger(value)&&value>=0?value:null;
+const invoiceUnixSeconds=(value)=>Number.isSafeInteger(value)&&value>=0?value:null;
 export function projectEvent(event) {
   const object = event?.data?.object ?? {}; const metadata = object.metadata ?? {};
   const isSubscriptionEvent = typeof event?.type === "string" && event.type.startsWith("customer.subscription.");
@@ -297,6 +302,13 @@ export function projectEvent(event) {
     stripeObjectId: typeof object.id === "string" ? object.id : null,
     paymentStatus: object.payment_status ?? null, status: object.status ?? null,
     amountTotal: object.amount_total ?? object.amount ?? null, currency: object.currency ?? null,
+    stripeInvoiceAmountPaidCents:isInvoiceEvent?invoiceMinor(object.amount_paid):null,
+    stripeInvoiceAmountDueCents:isInvoiceEvent?invoiceMinor(object.amount_due):null,
+    stripeInvoiceTotalCents:isInvoiceEvent?invoiceMinor(object.total):null,
+    stripeInvoiceAmountRemainingCents:isInvoiceEvent?invoiceMinor(object.amount_remaining):null,
+    stripeInvoiceBillingReason:isInvoiceEvent&&typeof object.billing_reason==='string'?object.billing_reason:null,
+    stripeInvoicePeriodStartUnixSeconds:isInvoiceEvent?invoiceUnixSeconds(object.period_start):null,
+    stripeInvoicePeriodEndUnixSeconds:isInvoiceEvent?invoiceUnixSeconds(object.period_end):null,
     paymentIntentId: typeof object.payment_intent === "string" ? object.payment_intent : null,
     stripePaymentLinkId: stripeSourceId(object.payment_link,'plink'),
     stripeBalanceTransactionId: stripeSourceId(object.balance_transaction,'txn'),
