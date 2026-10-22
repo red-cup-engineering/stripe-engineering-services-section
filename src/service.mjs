@@ -265,7 +265,30 @@ function eventSeen(provider, eventId) { return provider.query({ category: catego
  * @param {{id: string, type: string, created?: number, livemode?: boolean, data?: {object?: object}}} event a verified Stripe event
  * @returns {object} the redacted event projection
  */
-export function projectEvent(event) {
+export /** Retain only provider offer/price identifiers from signed events.
+ * Line items may be partial; observed IDs are not proof of complete amounts.
+ */
+const stripeSourceId=(value,prefix)=>typeof value==='string'&&
+ new RegExp('^'+prefix+'_[A-Za-z0-9]+$','u').test(value)?value:null;
+function signedEventPriceIdentities(eventType,object){
+ const container=eventType?.startsWith('customer.subscription.')
+  ?object?.items:eventType?.startsWith('invoice.')?object?.lines:null;
+ const rows=Array.isArray(container?.data)?container.data:null;
+ if(!rows)return {stripePriceIdsObserved:[],stripeProductIdsObserved:[],
+  stripeLineItemCoverage:'not-provided'};
+ const prices=new Set(),products=new Set();
+ for(const row of rows){
+  const rawPrice=row?.price?.id??row?.price??row?.pricing?.price_details?.price;
+  const rawProduct=row?.price?.product??row?.pricing?.price_details?.product;
+  const price=stripeSourceId(rawPrice,'price'),product=stripeSourceId(rawProduct,'prod');
+  if(price)prices.add(price);
+  if(product)products.add(product);
+ }
+ return {stripePriceIdsObserved:[...prices].sort(),
+  stripeProductIdsObserved:[...products].sort(),
+  stripeLineItemCoverage:container.has_more===false?'complete':'possibly-partial'};
+}
+function projectEvent(event) {
   const object = event?.data?.object ?? {}; const metadata = object.metadata ?? {};
   const isSubscriptionEvent = typeof event?.type === "string" && event.type.startsWith("customer.subscription.");
   const isInvoiceEvent = typeof event?.type === "string" && event.type.startsWith("invoice.");
@@ -275,6 +298,9 @@ export function projectEvent(event) {
     paymentStatus: object.payment_status ?? null, status: object.status ?? null,
     amountTotal: object.amount_total ?? object.amount ?? null, currency: object.currency ?? null,
     paymentIntentId: typeof object.payment_intent === "string" ? object.payment_intent : null,
+    stripePaymentLinkId: stripeSourceId(object.payment_link,'plink'),
+    stripeBalanceTransactionId: stripeSourceId(object.balance_transaction,'txn'),
+    ...signedEventPriceIdentities(event.type,object),
     subscriptionId: typeof object.subscription === "string" ? object.subscription : (isSubscriptionEvent && typeof object.id === "string" ? object.id : null),
     invoiceId: isInvoiceEvent && typeof object.id === "string" ? object.id : null,
     currentPeriodStart: typeof object.current_period_start === "number" ? object.current_period_start : null,
