@@ -380,3 +380,120 @@ test("qualified live checkout preserves the existing idempotent session path wit
   assert.equal(store.rows[0].record.stripeMode, "live");
   assert.equal(store.rows[0].record.paymentStatus, "unpaid");
 });
+
+
+
+test("signed Stripe support checkout keeps its provider Payment Link identity, not private buyer information", () => {
+ const event={
+  id:"evt_original_group_checkout",type:"checkout.session.completed",created:1792670000,
+  livemode:true,data:{object:{
+   id:"cs_paid_original",status:"complete",payment_status:"paid",
+   payment_link:"plink_1USMywJ1vYnPQu2NWHtcqx0b",
+   payment_intent:"pi_original_test",amount_total:1000,currency:"usd",
+   customer_details:{email:"private@example.invalid"},
+   metadata:{internal_note:"never-copy",customer_settlement:"urn:ame:buyer"}
+  }}
+ };
+ const receipt=projectEvent(event);
+ assert.equal(receipt.stripePaymentLinkId,"plink_1USMywJ1vYnPQu2NWHtcqx0b");
+ assert.equal(receipt.amountTotal,1000);
+ assert.equal(receipt.paymentStatus,"paid");
+ assert.equal(receipt.stripeLineItemCoverage,"not-provided");
+ assert.deepEqual(receipt.stripePriceIdsObserved,[]);
+ assert.deepEqual(receipt.stripeProductIdsObserved,[]);
+ assert.equal(receipt.stripeBalanceTransactionId,null);
+ assert.equal("customerDetails" in receipt,false);
+ assert.equal("customer" in receipt,false);
+ assert.equal("customerEmail" in receipt,false);
+ assert.equal("cashReceived" in receipt,false);
+ assert.equal("payoutId" in receipt,false);
+});
+
+test("subscription and invoice provider price identities are observed without inventing complete line-item or cleared-cash coverage", () => {
+ const price="price_1UMnsuJ1vYnPQu2N7U1S22t2";
+ const product="prod_VNZ0v9uUHgXFb3";
+ const subscription=projectEvent({
+  id:"evt_group_support_sub",type:"customer.subscription.created",
+  livemode:true,data:{object:{id:"sub_fixture",status:"active",
+   items:{has_more:false,data:[{price:{id:price,product}}]},
+   metadata:{extra:"private"}
+  }}
+ });
+ assert.equal(subscription.subscriptionId,"sub_fixture");
+ assert.equal(subscription.stripeLineItemCoverage,"complete");
+ assert.deepEqual(subscription.stripePriceIdsObserved,[price]);
+ assert.deepEqual(subscription.stripeProductIdsObserved,[product]);
+ assert.equal(subscription.stripePaymentLinkId,null);
+
+ const invoice=projectEvent({
+  id:"evt_group_support_invoice",type:"invoice.paid",livemode:true,
+  data:{object:{id:"in_fixture",subscription:"sub_fixture",status:"paid",
+   amount_total:1000,currency:"usd",
+   lines:{has_more:true,data:[
+    {pricing:{price_details:{price,product}}},
+    {pricing:{price_details:{price,product}}}
+   ]}
+  }}
+ });
+ assert.equal(invoice.invoiceId,"in_fixture");
+ assert.equal(invoice.subscriptionId,"sub_fixture");
+ assert.equal(invoice.stripeLineItemCoverage,"possibly-partial");
+ assert.deepEqual(invoice.stripePriceIdsObserved,[price]);
+ assert.deepEqual(invoice.stripeProductIdsObserved,[product]);
+ assert.equal("clearedCash" in invoice,false);
+ assert.equal("payoutStatus" in invoice,false);
+});
+
+test("unrecognized provider IDs and absent line items remain unknown, not a fabricated support sale", () => {
+ const rejected=projectEvent({
+  id:"evt_wrong_ids",type:"checkout.session.completed",
+  data:{object:{payment_link:"unknown_link",balance_transaction:"payout_123",
+   lines:{data:[{price:{id:"suspicious_price",product:"unknown"}}]},
+   payment_status:"unpaid"
+  }}
+ });
+ assert.equal(rejected.stripePaymentLinkId,null);
+ assert.equal(rejected.stripeBalanceTransactionId,null);
+ assert.deepEqual(rejected.stripePriceIdsObserved,[]);
+ assert.equal(rejected.stripeLineItemCoverage,"not-provided");
+
+ const absent=projectEvent({
+  id:"evt_missing_price",type:"invoice.paid",
+  data:{object:{id:"in_unknown",subscription:"sub_unknown",lines:{data:[]}}}
+ });
+ assert.deepEqual(absent.stripePriceIdsObserved,[]);
+ assert.equal(absent.stripeLineItemCoverage,"possibly-partial");
+});
+
+test("the ORIGINAL signature-verified webhook writer retains recurring support IDs once per event", async () => {
+ const timestamp=Math.floor(Date.now()/1000),secret="offline-original-support-secret";
+ const rawBody=JSON.stringify({
+  id:"evt_support_signed_original",type:"checkout.session.completed",
+  livemode:false,data:{object:{
+   id:"cs_original_support",payment_link:"plink_1USMywJ1vYnPQu2NWHtcqx0b",
+   payment_status:"paid",status:"complete",amount_total:1000,currency:"usd",
+   customer_details:{email:"do-not-retain@example.invalid"}
+  }}
+ });
+ const signatureHeader="t="+timestamp+",v1="+createHmac("sha256",secret)
+  .update(timestamp+"."+rawBody).digest("hex");
+ const writes=[];
+ const store={
+  query:()=>writes.map(x=>({record:x.record})),
+  async record(value){writes.push(value)}
+ };
+ const request={rawBody,signatureHeader};
+ const first=await ingestWebhook(request,{env:{STRIPE_WEBHOOK_SECRET:secret},store});
+ assert.equal(first.supported,true);
+ assert.equal(first.accepted,true);
+ assert.equal(writes.length,1);
+ const row=writes[0].record;
+ assert.equal(row.stripePaymentLinkId,"plink_1USMywJ1vYnPQu2NWHtcqx0b");
+ assert.equal(row.signatureVerified,true);
+ assert.equal(row.livemode,false);
+ assert.equal("customerDetails" in row,false);
+ assert.equal("clearedCash" in row,false);
+ const again=await ingestWebhook(request,{env:{STRIPE_WEBHOOK_SECRET:secret},store});
+ assert.equal(again.duplicate,true);
+ assert.equal(writes.length,1);
+});
