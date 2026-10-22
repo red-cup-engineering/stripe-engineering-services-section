@@ -497,3 +497,59 @@ test("the ORIGINAL signature-verified webhook writer retains recurring support I
  assert.equal(again.duplicate,true);
  assert.equal(writes.length,1);
 });
+
+
+test("actual legacy Stripe invoice.paid monetary fields are separately named from Checkout and bank settlement",()=>{
+ const price='price_1UMnsuJ1vYnPQu2N7U1S22t2';
+ const product='prod_VNZ0v9uUHgXFb3';
+ const event={id:'evt_invoice_observation',type:'invoice.paid',created:1792603006,
+  api_version:'2016-07-06',livemode:true,
+  data:{object:{id:'in_observed',subscription:'sub_observed',status:'paid',
+   currency:'usd',amount_paid:1000,amount_due:1200,amount_remaining:0,
+   total:1200,billing_reason:'subscription_cycle',
+   period_start:1792000000,period_end:1794600000,
+   customer:'private-customer-id-not-retained',
+   lines:{has_more:false,data:[{price:{id:price,product},
+    plan:{id:price},pricing:{price_details:{price,product}}}]}
+  }}
+ };
+ const source=projectEvent(event);
+ assert.equal(source.eventType,'invoice.paid');
+ assert.equal(source.amountTotal,null,'Checkout amount_total cannot be fabricated from invoice total');
+ assert.equal(source.stripeInvoiceAmountPaidCents,1000);
+ assert.equal(source.stripeInvoiceAmountDueCents,1200);
+ assert.equal(source.stripeInvoiceTotalCents,1200);
+ assert.equal(source.stripeInvoiceAmountRemainingCents,0);
+ assert.equal(source.stripeInvoiceBillingReason,'subscription_cycle');
+ assert.equal(source.stripeInvoicePeriodStartUnixSeconds,1792000000);
+ assert.equal(source.stripeInvoicePeriodEndUnixSeconds,1794600000);
+ assert.deepEqual(source.stripePriceIdsObserved,[price]);
+ assert.deepEqual(source.stripeProductIdsObserved,[product]);
+ assert.equal(source.stripeLineItemCoverage,'complete');
+ assert.equal(source.invoiceId,'in_observed');
+ assert.equal(source.subscriptionId,'sub_observed');
+ assert.equal('customer' in source,false);
+ assert.equal('cashReceived' in source,false);
+ assert.equal('stripePayoutAmount' in source,false);
+ assert.equal(JSON.stringify(source).includes('private-customer-id-not-retained'),false);
+});
+
+test("bad invoice numeric source fields remain unobserved instead of becoming fictitious cents",()=>{
+ const source=projectEvent({id:'evt_malformed_invoice',type:'invoice.payment_failed',
+  data:{object:{id:'in_example',status:'open',currency:'usd',amount_paid:'1000',
+   amount_due:NaN,total:-100,amount_remaining:1.5,period_start:'1792000000',
+   period_end:-1,billing_reason:{untrusted:'object'},lines:{data:[]}}}
+ });
+ for(const name of ['stripeInvoiceAmountPaidCents','stripeInvoiceAmountDueCents',
+  'stripeInvoiceTotalCents','stripeInvoiceAmountRemainingCents',
+  'stripeInvoiceBillingReason','stripeInvoicePeriodStartUnixSeconds',
+  'stripeInvoicePeriodEndUnixSeconds'])
+   assert.equal(source[name],null,name);
+ assert.equal(source.stripeLineItemCoverage,'possibly-partial');
+ assert.equal('customer' in source,false);
+ const other=projectEvent({id:'evt_normal_checkout',type:'checkout.session.completed',
+  data:{object:{id:'cs_fixture',amount_total:1000,currency:'usd',status:'complete'}}});
+ assert.equal(other.amountTotal,1000);
+ assert.equal(other.stripeInvoiceAmountPaidCents,null);
+ assert.equal(other.stripeInvoiceTotalCents,null);
+});
