@@ -40,10 +40,16 @@
     "README*",
     "LICENSE*",
     "src",
-    "content/config"
+    "content/config",
+    "test/service.test.mjs",
+    "test/service-public-event-projection.test.mjs"
   ],
   "funding": {
     "type": "individual",
     "url": "https://github.com/561-group/.github/blob/main/TIPS.md"
-  }
+  },
+  "receivingTests": [
+    "test/service.test.mjs",
+    "test/service-public-event-projection.test.mjs"
+  ]
 }
