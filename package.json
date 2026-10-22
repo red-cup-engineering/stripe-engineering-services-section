@@ -33,7 +33,7 @@
     "@red-cup-engineering/witness-journal-document-service": "0.1.2",
     "@red-cup-engineering/computer-system-engine": "0.1.7"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": false,
   "files": [
     "package.json",
@@ -41,5 +41,9 @@
     "LICENSE*",
     "src",
     "content/config"
-  ]
+  ],
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/561-group/.github/blob/main/TIPS.md"
+  }
 }
