@@ -265,46 +265,12 @@ function eventSeen(provider, eventId) { return provider.query({ category: catego
  * @param {{id: string, type: string, created?: number, livemode?: boolean, data?: {object?: object}}} event a verified Stripe event
  * @returns {object} the redacted event projection
  */
-export /** Retain machine-readable price/offer identifiers from signed Stripe events.
- * Arrays below mean IDs OBSERVED in this event, not complete financial totals.
+export /** Retain only provider offer/price identifiers from signed events.
+ * Line items may be partial; observed IDs are not proof of complete amounts.
  */
-const sourceId=(value,prefix)=>typeof value==='string'&&
- new RegExp('^'+prefix+'_[A-Za-z0-9]+
-  const object = event?.data?.object ?? {}; const metadata = object.metadata ?? {};
-  const isSubscriptionEvent = typeof event?.type === "string" && event.type.startsWith("customer.subscription.");
-  const isInvoiceEvent = typeof event?.type === "string" && event.type.startsWith("invoice.");
-  return {
-    stripeEventId: event.id, eventType: event.type, created: event.created ?? null, livemode: event.livemode ?? null,
-    stripeObjectId: typeof object.id === "string" ? object.id : null,
-    paymentStatus: object.payment_status ?? null, status: object.status ?? null,
-    amountTotal: object.amount_total ?? object.amount ?? null, currency: object.currency ?? null,
-    paymentIntentId: typeof object.payment_intent === "string" ? object.payment_intent : null,
-    stripePaymentLinkId: sourceId(object.payment_link,'plink'),
-    stripeBalanceTransactionId: sourceId(object.balance_transaction,'txn'),
-    ...linePriceIdentifiers(event.type,object),
-    subscriptionId: typeof object.subscription === "string" ? object.subscription : (isSubscriptionEvent && typeof object.id === "string" ? object.id : null),
-    invoiceId: isInvoiceEvent && typeof object.id === "string" ? object.id : null,
-    currentPeriodStart: typeof object.current_period_start === "number" ? object.current_period_start : null,
-    currentPeriodEnd: typeof object.current_period_end === "number" ? object.current_period_end : null,
-    cancelAtPeriodEnd: typeof object.cancel_at_period_end === "boolean" ? object.cancel_at_period_end : null,
-    requestDigest: metadata.request_digest ?? null, offeringId: metadata.offering_id ?? null, customerSettlement: metadata.customer_settlement ?? null
-  };
-}
-export async function ingestWebhook({ rawBody, signatureHeader }, options = {}) {
-  const env = options.env ?? process.env; const secret = env.STRIPE_WEBHOOK_SECRET; const now = options.now ?? new Date(); const nowSeconds = options.nowSeconds ?? Math.floor(now.getTime() / 1000);
-  if (!secret) return { type: "StripeWebhookRefusal", reason: "webhook-secret-unavailable" };
-  if (Buffer.byteLength(rawBody ?? "", "utf8") > (options.maxBodyBytes ?? 1024 * 1024)) return { type: "StripeWebhookRefusal", reason: "webhook-body-too-large" };
-  if (!verifyStripeSignature({ rawBody, signatureHeader, secret, toleranceSeconds: options.toleranceSeconds ?? 300, now: nowSeconds })) return { type: "StripeWebhookRefusal", reason: "invalid-or-stale-stripe-signature" };
-  let event; try { event = JSON.parse(rawBody); } catch { return { type: "StripeWebhookRefusal", reason: "invalid-json-after-signature-verification" }; }
-  if (typeof event?.id !== "string" || typeof event?.type !== "string") return { type: "StripeWebhookRefusal", reason: "invalid-stripe-event-shape" };
-  const provider = evidenceStore(options); if (eventSeen(provider, event.id)) return { type: "StripeWebhookReceipt", stripeEventId: event.id, duplicate: true, accepted: true };
-  const projection = projectEvent(event); const record = { id: `urn:stripe-event-receipt:${event.id}`, type: "StripeWebhookEventReceipt", recordedAt: now.toISOString(), supported: SUPPORTED_EVENTS.has(event.type), ...projection, signatureVerified: true, duplicate: false, rawBodyRecorded: false, buyerPersonalDataRecorded: false, consequence: SUPPORTED_EVENTS.has(event.type) ? "customer-settlement-must-independently-admit" : "ignored-unsupported-event" };
-  await provider.record({ category: category("stripe-webhook-event-admission", "events"), recordedAt: now.toISOString(), record, told: { for: true, against: false } });
-  return { type: "StripeWebhookReceipt", stripeEventId: event.id, eventType: event.type, supported: record.supported, duplicate: false, accepted: true, consequence: record.consequence };
-}
-
-,'u').test(value)?value:null;
-function linePriceIdentifiers(eventType,object){
+const stripeSourceId=(value,prefix)=>typeof value==='string'&&
+ new RegExp('^'+prefix+'_[A-Za-z0-9]+$','u').test(value)?value:null;
+function signedEventPriceIdentities(eventType,object){
  const container=eventType?.startsWith('customer.subscription.')
   ?object?.items:eventType?.startsWith('invoice.')?object?.lines:null;
  const rows=Array.isArray(container?.data)?container.data:null;
@@ -314,7 +280,7 @@ function linePriceIdentifiers(eventType,object){
  for(const row of rows){
   const rawPrice=row?.price?.id??row?.price??row?.pricing?.price_details?.price;
   const rawProduct=row?.price?.product??row?.pricing?.price_details?.product;
-  const price=sourceId(rawPrice,'price'),product=sourceId(rawProduct,'prod');
+  const price=stripeSourceId(rawPrice,'price'),product=stripeSourceId(rawProduct,'prod');
   if(price)prices.add(price);
   if(product)products.add(product);
  }
@@ -332,6 +298,9 @@ function projectEvent(event) {
     paymentStatus: object.payment_status ?? null, status: object.status ?? null,
     amountTotal: object.amount_total ?? object.amount ?? null, currency: object.currency ?? null,
     paymentIntentId: typeof object.payment_intent === "string" ? object.payment_intent : null,
+    stripePaymentLinkId: stripeSourceId(object.payment_link,'plink'),
+    stripeBalanceTransactionId: stripeSourceId(object.balance_transaction,'txn'),
+    ...signedEventPriceIdentities(event.type,object),
     subscriptionId: typeof object.subscription === "string" ? object.subscription : (isSubscriptionEvent && typeof object.id === "string" ? object.id : null),
     invoiceId: isInvoiceEvent && typeof object.id === "string" ? object.id : null,
     currentPeriodStart: typeof object.current_period_start === "number" ? object.current_period_start : null,
