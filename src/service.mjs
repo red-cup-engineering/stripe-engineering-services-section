@@ -265,7 +265,7 @@ function eventSeen(provider, eventId) { return provider.query({ category: catego
  * @param {{id: string, type: string, created?: number, livemode?: boolean, data?: {object?: object}}} event a verified Stripe event
  * @returns {object} the redacted event projection
  */
-export /** Retain only provider offer/price identifiers from signed events.
+/** Retain only provider offer/price identifiers from signed events.
  * Line items may be partial; observed IDs are not proof of complete amounts.
  */
 const stripeSourceId=(value,prefix)=>typeof value==='string'&&
@@ -288,7 +288,7 @@ function signedEventPriceIdentities(eventType,object){
   stripeProductIdsObserved:[...products].sort(),
   stripeLineItemCoverage:container.has_more===false?'complete':'possibly-partial'};
 }
-function projectEvent(event) {
+export function projectEvent(event) {
   const object = event?.data?.object ?? {}; const metadata = object.metadata ?? {};
   const isSubscriptionEvent = typeof event?.type === "string" && event.type.startsWith("customer.subscription.");
   const isInvoiceEvent = typeof event?.type === "string" && event.type.startsWith("invoice.");
