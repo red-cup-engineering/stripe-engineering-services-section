@@ -25,11 +25,11 @@
     "node": ">=22.18"
   },
   "dependencies": {
-    "@red-cup-engineering/semiotic-eavt-services-section": "0.1.0",
-    "@red-cup-engineering/json-schema-services-section": "0.5.0",
+    "@red-cup-engineering/semiotic-eavt-engineering-services-section": "0.1.0",
+    "@red-cup-engineering/json-schema-engineering-services-section": "0.5.0",
     "@red-cup-engineering/computer-content-address-engineering-services-section": "0.2.0",
     "@red-cup-engineering/computer-data-engineering-services-section": "0.2.0",
-    "@red-cup-engineering/assisted-browser-services-section": "0.2.2",
+    "@red-cup-engineering/assisted-browser-engineering-services-section": "0.2.2",
     "@red-cup-engineering/witness-journal-document-service": "0.1.2",
     "@red-cup-engineering/computer-system-engine": "0.1.7"
   },
