@@ -1,11 +1,11 @@
 {
-  "name": "@red-cup-engineering/stripe-services-section",
+  "name": "@red-cup-engineering/stripe-engineering-services-section",
   "version": "0.1.12",
   "type": "module",
   "description": "A sovereign Group-owned Stripe Checkout and verified-event boundary with fixed offerings, idempotency, and provider-local receipts. Owns the Stripe business logic and credentials; the inbound HTTP listener that fronts it is stripe-webhook-receiver-activation in rsc-quiescent.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/red-cup-engineering/stripe-services-section.git"
+    "url": "git+https://github.com/red-cup-engineering/stripe-engineering-services-section.git"
   },
   "bin": {
     "stripe-payment-acceptance": "./src/cli.mjs"
