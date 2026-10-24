@@ -4,6 +4,7 @@ import { schemaFrom } from '@red-cup-engineering/json-schema-services-section/co
 import {
   ACTOR, credentialMode, digest, invokeCheckout, loadCatalog, readiness, solicitCheckout,
 } from './service.mjs';
+import {observeStripeProviderBalance} from './provider-balance-source.mjs';
 
 const emptyInput = schemaFrom({
   $id: 'stripe/metroplat/readiness-input/v1', type: 'object', additionalProperties: false,
@@ -19,6 +20,14 @@ const checkoutInput = schemaFrom({
     quantity: { type: 'integer', minimum: 1 },
   }, additionalProperties: false,
 });
+const balanceReadInput = schemaFrom({
+  $id: 'stripe/metroplat/provider-balance-read-input/v1', type: 'object',
+  required: ['from', 'until', 'currency'], additionalProperties: false,
+  properties: {
+    from: {type: 'string', minLength: 20}, until: {type: 'string', minLength: 20},
+    currency: {type: 'string', pattern: '^[a-z]{3}$'},
+  },
+});
 const acceptanceInput = schemaFrom({
   $id: 'stripe/metroplat/accept-input/v1', type: 'object', required: ['offer'],
   properties: { offer: { type: 'object' } }, additionalProperties: false,
@@ -28,7 +37,7 @@ const output = schemaFrom({
   properties: { type: { type: 'string' } },
 });
 
-const admittedConfigurationKeys = new Set(['merchant', 'catalog', 'allowedReturnOrigins', 'allowLiveCheckout']);
+const admittedConfigurationKeys = new Set(['merchant', 'catalog', 'allowedReturnOrigins', 'allowLiveCheckout', 'enableProviderBalanceReadout', 'providerBalanceAccountId']);
 const secureOrigin = (value) => {
   if (typeof value !== 'string') return false;
   try { const url = new URL(value); return url.protocol === 'https:' && url.href === url.origin + '/'; }
@@ -65,6 +74,12 @@ export function stripeMetroplatOperations(binding, options = {}) {
   if (configuration.allowLiveCheckout !== undefined && typeof configuration.allowLiveCheckout !== 'boolean') {
     throw new TypeError('Stripe MetroPlat allowLiveCheckout must be a boolean');
   }
+  if (configuration.enableProviderBalanceReadout !== undefined &&
+      typeof configuration.enableProviderBalanceReadout !== 'boolean')
+    throw new TypeError('Stripe provider balance enablement must be boolean');
+  if (configuration.enableProviderBalanceReadout === true &&
+      !/^acct_[A-Za-z0-9]+$/.test(configuration.providerBalanceAccountId || ''))
+    throw new TypeError('Stripe provider balance requires the exact original merchant account identity');
   // The environment comes from the host, never from instance JSON or tool input.
   // Use the installed world's root and the provider's existing Stripe-prefixed EAVT categories.
   const env = options.environment ?? {};
@@ -125,6 +140,21 @@ export function stripeMetroplatOperations(binding, options = {}) {
         return invokeCheckout(accepted, { ...serviceOptions, ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}) });
       },
     }),
+    ...(configuration.enableProviderBalanceReadout === true ? [operation({
+      verb: 'stripe-provider-balance-read', inputFormat: 'json', outputFormat: 'json',
+      summary: 'Read source-verified Stripe charges, fees, refunds and payouts without recognizing unreceived revenue.',
+      domain: balanceReadInput, codomain: output, reads: ['stripe-provider-balance-account'],
+      run: (input, _args, context) => {
+        if (!subjectOf(context)) return refused('authenticated-metroplat-subject-required');
+        return observeStripeProviderBalance({
+          key: env.API_KEY_STRIPE || env.STRIPE_SECRET_KEY || '',
+          expectedAccountId: configuration.providerBalanceAccountId,
+          from: input.from, until: input.until, currency: input.currency,
+          observedAt: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+          ...(options.fetchImpl ? {fetchImpl: options.fetchImpl} : {}),
+        });
+      },
+    })] : []),
   ]);
 }
 
