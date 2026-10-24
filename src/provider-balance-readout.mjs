@@ -39,10 +39,15 @@ function selectPage(name, page, from, until, currency) {
       throw new TypeError(name + ': provider currency missing');
     previous = r.created;
   }
-  const complete = !page.has_more || (page.data.length > 0 && previous < from);
+  // A Checkout Session with unknown currency must not silently disappear from
+  // a requested currency's unpaid count and appear as complete zero exposure.
+  const unknownCurrencyRows = name === 'checkoutSessions' ? page.data.filter(
+    r => r.created >= from && r.created < until && typeof r.currency !== 'string').length : 0;
+  const complete = (!page.has_more || (page.data.length > 0 && previous < from))
+    && unknownCurrencyRows === 0;
   return {
     coverage: { complete, hasMore: page.has_more, observedRows: page.data.length,
-      olderThanWindowWitness: page.data.length > 0 && previous < from },
+      unknownCurrencyRows, olderThanWindowWitness: page.data.length > 0 && previous < from },
     rows: page.data.filter(r => r.created >= from && r.created < until && r.currency === currency),
   };
 }

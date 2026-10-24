@@ -108,3 +108,16 @@ test('mode conflict, contradictory balance and nonprogressing provider page refu
     ...options,fetchImpl:mock({list:empty,hasMore:{'/v1/charges':true}}).fetchImpl,
   })).reason,'provider-charges-pagination-nonprogress');
 });
+
+test('a Checkout Session with unknown currency keeps unpaid exposure unknown',async()=>{
+  const uncertain={...rows,'/v1/checkout/sessions':[
+    {...rows['/v1/checkout/sessions'][0],currency:null},
+  ]};
+  const result=await observeStripeProviderBalance({
+    ...options,fetchImpl:mock({list:uncertain}).fetchImpl,
+  });
+  assert.equal(result.fullyCovered,false);
+  assert.equal(result.financial,null);
+  assert.equal(result.unpaidCheckout,null);
+  assert.equal(result.coverage.checkoutSessions.unknownCurrencyRows,1);
+});
