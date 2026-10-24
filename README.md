@@ -15,7 +15,7 @@ Add the package at a published, qualified immutable version to the selected Felt
 
 ```json
 {
-  "module": "@red-cup-engineering/stripe-engineering-services-section/metroplat",
+  "module": "@red-cup-engineering/stripe-services-section/metroplat",
   "export": "stripeMetroplatApplication",
   "configuration": {
     "merchant": "emsenn",
@@ -41,7 +41,7 @@ Stripe webhook HTTP ingress must continue to use the original **raw-body** recei
 
 ## Source-owned Shop webhook contract: required named export and installed tests
 
-The existing `shop.561.group` Worker imports `projectEvent` from `@red-cup-engineering/stripe-engineering-services-section` while receiving authenticated `checkout.session.completed` records. This package's previous source edit retained internal `stripePaymentLinkId` and observed price identities but inadvertently attached the original `export` keyword to a new helper rather than to `projectEvent`. The module remained syntactically valid while losing a public named export. That breaks the Shop's **original import contract** if the affected source is published as an installed package.
+The existing `shop.561.group` Worker imports `projectEvent` from `@red-cup-engineering/stripe-services-section` while receiving authenticated `checkout.session.completed` records. This package's previous source edit retained internal `stripePaymentLinkId` and observed price identities but inadvertently attached the original `export` keyword to a new helper rather than to `projectEvent`. The module remained syntactically valid while losing a public named export. That breaks the Shop's **original import contract** if the affected source is published as an installed package.
 
 The original `src/service.mjs` now exports `projectEvent` explicitly and keeps provider-identity helpers private. The native `test/service-public-event-projection.test.mjs` imports through the package's `.` and `./service` exports (not merely by relative source), verifies a paid Checkout receipt's exact origin, exercises the observed subscription and possibly-partial invoice price keys, and rejects buyer PII or presumed treasury cash. Both that test and the existing source test are now required `receivingTests` in the original npm package `files` set, to be checked by the house publisher against the **actual tarball**.
 
