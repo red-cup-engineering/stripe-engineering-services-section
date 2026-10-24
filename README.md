@@ -27,6 +27,19 @@ Add the package at a published, qualified immutable version to the selected Felt
 
 This illustrative merchant matches the repository's *test-only* source catalog. It does not make personal Stripe revenues Group revenue, arm shop.561.group, or authorize a public charge. For a different legal seller, select that seller's source-owned catalog in `configuration.catalog` with its matching `merchant`, independent terms and account custody. Do not mount two sellers through one ambiguous key or an inferred corporate identity.
 
+Read-only balance capability is **not mounted by default**. The source-qualified
+`stripe-provider-balance-read` operation is offered only when the competent host
+explicitly declares `enableProviderBalanceReadout:true` and a `providerBalanceAccountId`
+that matches the very same legal seller's original Stripe account. This does not
+activate checkout. It reads Stripe's own `/v1/account` and paged balance,
+charge, payout and Checkout Session GET endpoints under host-custodied read authority;
+wrong identity, unavailable provider/credential, contradictory source rows and
+incomplete pagination refuse or return unknown. It never counts an open Session
+as settled cash or exposes raw buyer details. Original independent bank and customer
+receiving must still take place; the host must separately grant an authorized
+Office the read operation. Current default source catalog is **emsenn test-only**, not
+561 Group's lawful seller. This source change does not mount a host app.
+
 MetroPlat projects the native operation family to its existing CLI/HTTP/MCP catalog:
 
 - `stripe-checkout-readiness` — credential mode and source-defined offering readiness, without key bytes.
