@@ -20,7 +20,7 @@ customer email/address, payment method, card data, API key, or webhook secret.
 The Stripe payment service's event journal is **provider-side evidence**, not
 the customer's received product. For a game or other paid digital good, the
 already installed downstream operation is
-`@red-cup-engineering/digital-goods-storefront-engineering-services-section` in
+`@red-cup-engineering/digital-goods-storefront-services-section` in
 `services/digital-goods-storefront-services-section/src/stripe-checkout-fulfillment.mjs`
 (sibling of this package). It consumes the untouched webhook body,
 validates `Stripe-Signature`, projects only accepted Checkout events, and
