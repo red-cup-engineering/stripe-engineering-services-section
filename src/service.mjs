@@ -1,4 +1,6 @@
 import { CHECKOUT_EVENTS } from "./checkout-events.mjs";
+import { resolveCurrentSubscriptionBilling } from "./subscription-access.mjs";
+export { SUBSCRIPTION_READ_API_VERSION } from "./subscription-access.mjs";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
@@ -22,6 +24,9 @@ function packageRoot() {
 export const ACTOR = "urn:ame:stripe-services-section";
 const SUPPORTED_EVENTS = new Set([
   ...CHECKOUT_EVENTS, "checkout.session.expired", "payment_intent.payment_failed", "charge.refunded",
+  "charge.dispute.created", "charge.dispute.updated", "charge.dispute.closed",
+  "charge.dispute.funds_withdrawn", "charge.dispute.funds_reinstated",
+  "credit_note.created", "credit_note.updated", "credit_note.voided",
   "invoice.paid", "invoice.payment_failed",
   "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"
 ]);
@@ -170,7 +175,7 @@ export function solicitCheckout(activity, options = {}) {
 
 /**
  * Resolves the receipt/event journal a call should use: an injected
- * `{ record(entry), query({category}) }` store (a Worker's own KV/D1/etc
+ * `{ record(entry), query({category, limit, strict}) }` store (a Worker's own KV/D1/etc
  * adapter) when `options.store` is given, else the on-disk
  * semiotic-eavt store, a category being the store type `<law>-<kind>`. The disk fallback is the only path that
  * touches the filesystem, so a caller that always supplies `options.store`
@@ -183,7 +188,17 @@ function evidenceStore(options) {
   const root = options.root ?? packageRoot(), typeOf = (name) => name.replace(".", "-");
   return {
     record: ({ category: name, record }) => ({ id: put(root, typeOf(name), record) }),
-    query: ({ category: name }) => [...each(root, typeOf(name))].map(({ address, record }) => ({ id: address, record })),
+    query: ({ category: name, limit = Infinity }) => {
+      const rows = [];
+      // A skipped bad row could be the revocation/conflict that defeats access.
+      // Successful billing reads must exhaust verified original custody;
+      // bounded prefixes are returned only to trigger the caller's overflow refusal.
+      for (const { address, record } of each(root, typeOf(name), { strict: true })) {
+        rows.push({ id: address, record });
+        if (rows.length >= limit) break;
+      }
+      return rows;
+    },
   };
 }
 const category = (law, kind) => `${law}.${kind}`;
@@ -262,7 +277,14 @@ export function verifyStripeSignature({ rawBody, signatureHeader, secret, tolera
   const expected = Buffer.from(createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex"), "hex");
   return signatures.some((signature) => { const actual = Buffer.from(signature, "hex"); return actual.length === expected.length && timingSafeEqual(actual, expected); });
 }
-function eventSeen(provider, eventId) { return provider.query({ category: category("stripe-webhook-event-admission", "events") }).some(({ record }) => record.stripeEventId === eventId); }
+function eventReceiptsAgree(left, right) {
+  if (left.eventContentDigest && right.eventContentDigest) return left.eventContentDigest === right.eventContentDigest;
+  // Older accepted receipts retained only the redacted projection. Compare all
+  // fields they actually retained; do not invent a historical payload digest.
+  const keys = Object.keys(projectEvent({ id: null, type: '', data: { object: {} } }))
+    .filter(key => Object.hasOwn(left, key) && Object.hasOwn(right, key));
+  return keys.every(key => digest(left[key]) === digest(right[key]));
+}
 /**
  * Projects a raw Stripe webhook event onto the redacted, no-PII shape this
  * service records — pure, so a Worker can compute the same projection it
@@ -321,13 +343,15 @@ function subscriptionBinding(eventType, object) {
     subscriptionReference(isSubscription ? object.id : object.subscription),
     ...(isInvoice ? [subscriptionReference(parent?.subscription)] : []),
   ].filter(value => value !== null);
+  const stripeSubscriptionIdsObserved = [...new Set(references)].sort();
   const bindings = SUBSCRIPTION_BINDING_FIELDS.map(field => [...new Set(metadataSources.map(source => metadataValue(source?.[field])).filter(value => value !== null))]);
   if (new Set(references).size > 1 || bindings.some(values => values.length > 1)) {
-    return { subscriptionId: null, subscriptionBindingStatus: "conflicting", requestDigest: null, offeringId: null, customerSettlement: null };
+    return { subscriptionId: null, stripeSubscriptionIdsObserved, subscriptionBindingStatus: "conflicting", requestDigest: null, offeringId: null, customerSettlement: null };
   }
   const [requestDigest, offeringId, customerSettlement] = bindings.map(values => values[0] ?? null);
   return {
     subscriptionId: references[0] ?? null,
+    stripeSubscriptionIdsObserved,
     subscriptionBindingStatus: references.length && bindings.every(values => values.length === 1) ? "bound" : references.length || bindings.some(values => values.length) ? "partial" : "absent",
     requestDigest, offeringId, customerSettlement,
   };
@@ -363,6 +387,9 @@ export function projectEvent(event) {
     stripeInvoicePeriodStartUnixSeconds:isInvoiceEvent?invoiceUnixSeconds(object.period_start):null,
     stripeInvoicePeriodEndUnixSeconds:isInvoiceEvent?invoiceUnixSeconds(object.period_end):null,
     paymentIntentId: typeof object.payment_intent === "string" ? object.payment_intent : null,
+    stripeChargeId: stripeSourceId(event.type?.startsWith('charge.dispute.') ? object.charge?.id ?? object.charge
+      : event.type?.startsWith('charge.') ? object.id : null, 'ch'),
+    stripeCreditNoteInvoiceId: event.type?.startsWith('credit_note.') ? stripeSourceId(object.invoice?.id ?? object.invoice, 'in') : null,
     stripePaymentLinkId: stripeSourceId(object.payment_link,'plink'),
     stripeBalanceTransactionId: stripeSourceId(object.balance_transaction,'txn'),
     ...signedEventPriceIdentities(event.type,object),
@@ -380,9 +407,41 @@ export async function ingestWebhook({ rawBody, signatureHeader }, options = {}) 
   if (!verifyStripeSignature({ rawBody, signatureHeader, secret, toleranceSeconds: options.toleranceSeconds ?? 300, now: nowSeconds })) return { type: "StripeWebhookRefusal", reason: "invalid-or-stale-stripe-signature" };
   let event; try { event = JSON.parse(rawBody); } catch { return { type: "StripeWebhookRefusal", reason: "invalid-json-after-signature-verification" }; }
   if (typeof event?.id !== "string" || typeof event?.type !== "string") return { type: "StripeWebhookRefusal", reason: "invalid-stripe-event-shape" };
-  const provider = evidenceStore(options); if (eventSeen(provider, event.id)) return { type: "StripeWebhookReceipt", stripeEventId: event.id, duplicate: true, accepted: true };
-  const projection = projectEvent(event); const record = { id: `urn:stripe-event-receipt:${event.id}`, type: "StripeWebhookEventReceipt", recordedAt: now.toISOString(), supported: SUPPORTED_EVENTS.has(event.type), ...projection, signatureVerified: true, duplicate: false, rawBodyRecorded: false, buyerPersonalDataRecorded: false, consequence: SUPPORTED_EVENTS.has(event.type) ? "customer-settlement-must-independently-admit" : "ignored-unsupported-event" };
+  const provider = evidenceStore(options), projection = projectEvent(event), eventContentDigest = digest(event);
+  const identity = { ...projection, eventContentDigest };
+  let prior;
+  try {
+    prior = (await provider.query({ category: category("stripe-webhook-event-admission", "events"), strict: true }))
+      .map(({ record }) => record).filter(record => record.stripeEventId === event.id);
+  } catch {
+    return { type: 'StripeWebhookRefusal', reason: 'stripe-webhook-event-journal-unavailable', accepted: false };
+  }
+  if (prior.length) {
+    if (prior.some(record => record.conflict === true || !eventReceiptsAgree(record, identity))) {
+      if (!prior.some(record => record.conflict === true && record.eventContentDigest === eventContentDigest)) {
+        await provider.record({ category: category("stripe-webhook-event-admission", "events"), recordedAt: now.toISOString(),
+          record: { id: `urn:stripe-event-conflict:${event.id}:${eventContentDigest.slice('ni:///sha-256;'.length)}`,
+            type: 'StripeWebhookEventConflictReceipt', recordedAt: now.toISOString(), ...identity,
+            signatureVerified: true, supported: false, conflict: true, rawBodyRecorded: false, buyerPersonalDataRecorded: false,
+            consequence: 'conflicting-event-identity-must-not-authorize-access' }, told: { for: false, against: true } });
+      }
+      return { type: 'StripeWebhookRefusal', reason: 'conflicting-stripe-event-identity', stripeEventId: event.id, accepted: false };
+    }
+    return { type: "StripeWebhookReceipt", stripeEventId: event.id, duplicate: true, accepted: true };
+  }
+  const record = { id: `urn:stripe-event-receipt:${event.id}`, type: "StripeWebhookEventReceipt", recordedAt: now.toISOString(), supported: SUPPORTED_EVENTS.has(event.type), ...identity, signatureVerified: true, duplicate: false, rawBodyRecorded: false, buyerPersonalDataRecorded: false, consequence: SUPPORTED_EVENTS.has(event.type) ? "customer-settlement-must-independently-admit" : "ignored-unsupported-event" };
   await provider.record({ category: category("stripe-webhook-event-admission", "events"), recordedAt: now.toISOString(), record, told: { for: true, against: false } });
   return { type: "StripeWebhookReceipt", stripeEventId: event.id, eventType: event.type, supported: record.supported, duplicate: false, accepted: true, consequence: record.consequence };
+}
+
+/** Read-only billing evidence for one original Checkout order. The caller is a
+ * trusted host adapter: authenticatedActor, account, catalog and store must be
+ * derived by that host, never accepted as authority from a request body. The
+ * result deliberately carries no product rights, profiles or access token. */
+export async function resolveSubscriptionAccess(input, options = {}) {
+  const env = options.env ?? process.env;
+  return resolveCurrentSubscriptionBilling(input, { key: stripeKey(env),
+    catalog: options.catalog ?? loadCatalog(options.catalogPath), store: evidenceStore(options),
+    digest, projectEvent, eventReceiptsAgree, validateLiveOffering, options });
 }
 

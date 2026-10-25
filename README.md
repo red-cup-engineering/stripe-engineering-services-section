@@ -90,3 +90,11 @@ webhook registration or paid plan. The ASSIST access consumer must still join
 the original principal, offering scope and independently verified lifecycle.
 
 With the original registry dependencies installed, run `npm run check && npm test`. The new `test/metroplat.test.mjs` exercises native operation declarations, actor-binding, merchant and return-origin gates, test-mode session creation through an injected fake provider, and live-mode refusal. Independently qualify the exact published package, installed FeltOS/MetroPlat instance, MCP authorization and real merchant webhook before calling the application operational.
+
+## Current recurring billing evidence
+
+The original service now exports `resolveSubscriptionAccess`, a read-only,
+account-bound current paid-period observation for the host's recurring-contract
+resolver. It joins the original Checkout receipt and signed journal with current
+subscription, invoice-line and provider-payment evidence. It grants no product
+scope or subscriber identity. See [the contract and receiving limits](docs/SUBSCRIPTION-BILLING-EVIDENCE.md).
