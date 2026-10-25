@@ -8,6 +8,7 @@ import { each } from '@red-cup-engineering/semiotic-eavt-services-section/store'
 import { recordFile } from '@red-cup-engineering/semiotic-eavt-services-section/layout';
 import { ACTOR, digest, ingestWebhook, invokeCheckout, solicitCheckout, resolveSubscriptionAccess,
   SUBSCRIPTION_READ_API_VERSION } from '../src/service.mjs';
+import * as originalService from '../src/service.mjs';
 
 const NOW = new Date('2026-10-25T12:00:00.000Z');
 const unix = value => Math.floor(new Date(value).getTime() / 1000);
@@ -288,10 +289,10 @@ test('conflicting concurrent journal receipts remain unresolvable even if their 
   assert.equal((await f.resolve()).reason, 'subscription-event-conflict');
 });
 
-test('legacy redacted event receipts remain idempotent without inventing a historical raw-payload digest', async () => {
+test('legacy redacted event receipts remain idempotent but incomplete projection cannot qualify current billing', async () => {
   const f = await fixture(); delete f.rows[1].record.eventContentDigest; delete f.rows[1].record.stripeSubscriptionIdsObserved;
   assert.equal((await f.ingest(f.originalEvent)).duplicate, true); assert.equal(f.rows.length, 2);
-  assert.equal((await f.resolve()).admitted, true);
+  assert.equal((await f.resolve()).reason, 'subscription-event-journal-incomplete');
   const conflict = copy(f.originalEvent); conflict.data.object.metadata.offering_id = 'other-offer';
   assert.equal((await f.ingest(conflict)).reason, 'conflicting-stripe-event-identity');
 });
@@ -473,5 +474,123 @@ test('provider contact data and credentials are never returned or added to the o
   for (const privateValue of ['private@example.test', 'Private Customer', f.env.STRIPE_SECRET_KEY, f.env.STRIPE_WEBHOOK_SECRET]) {
     assert.equal(JSON.stringify(result).includes(privateValue), false);
     assert.equal(JSON.stringify(f.rows).includes(privateValue), false);
+  }
+});
+
+for (const [type, object, field, expected] of [
+  ['charge.dispute.created', { id: 'dp_custody', object: 'dispute', charge: 'ch_fixture' }, 'stripeChargeId', 'subscription-payment-disputed'],
+  ['credit_note.created', { id: 'cn_custody', object: 'credit_note', invoice: 'in_fixture' }, 'stripeCreditNoteInvoiceId', 'subscription-current-invoice-credit-note-unsupported'],
+]) test(`original billing cannot lose a retained ${type} when its projected ${field} field disappears`, async () => {
+  const f = await fixture(); assert.equal((await f.resolve()).admitted, true);
+  assert.equal((await f.ingest(f.event('evt_custody', type, object))).accepted, true);
+  assert.equal((await f.resolve()).reason, expected);
+  const record = f.rows.find(row => row.record.stripeEventId === 'evt_custody').record;
+  assert.equal(typeof record[field], 'string'); delete record[field];
+  f.reads.length = 0;
+  const result = await f.resolve(); assert.equal(result.admitted, false);
+  assert.equal(result.reason, 'subscription-event-journal-incomplete'); assert.equal(f.reads.length, 0);
+  assert.equal(Object.hasOwn(record, field), false, 'no fabricated historical null or migration');
+});
+
+test('final billing recheck refuses a newly incomplete retained native projection', async () => {
+  const f = await fixture();
+  f.setReadHook(async ({ parsed, reads }) => {
+    if (parsed.pathname === '/v1/subscriptions/sub_fixture' && reads.filter(row => row.path === parsed.pathname).length === 2) {
+      await f.ingest(f.event('evt_final_custody', 'credit_note.created', { id: 'cn_custody', object: 'credit_note', invoice: 'in_fixture' }));
+      delete f.rows.at(-1).record.stripeCreditNoteInvoiceId;
+    }
+  });
+  const result = await f.resolve(); assert.equal(result.admitted, false);
+  assert.equal(result.reason, 'subscription-event-journal-incomplete'); assert.equal(f.reads.length, 7);
+});
+
+const externalSupportObservation = () => ({
+  id: 'urn:stripe-event-receipt:evt_external_support', type: 'StripeExternalPaymentLinkObservation', schemaVersion: 1,
+  stripeEventId: 'evt_external_support', eventType: 'checkout.session.completed', stripePaymentLinkId: 'plink_support',
+  stripeCheckoutSessionId: 'cs_support', amountTotal: 1000, currency: 'usd', paymentStatus: 'paid', status: 'complete',
+  livemode: true, stripeEventCreatedAt: unix(NOW), signatureVerified: true, buyerPersonalDataRecorded: false, rawBodyRecorded: false,
+  consequence: 'outside-catalog-checkout-observed-not-group-treasury-settlement',
+});
+
+test('canonical null, unrelated native events and original external support observations keep their distinct meaning', async () => {
+  const f = await fixture();
+  for (const object of [{ id: 'dp_null', object: 'dispute' }, { id: 'dp_other', object: 'dispute', charge: 'ch_other' }]) {
+    await f.ingest(f.event(`evt_${object.id}`, 'charge.dispute.created', object));
+    assert.equal(Object.hasOwn(f.rows.at(-1).record, 'stripeChargeId'), true);
+    assert.equal(f.rows.at(-1).record.stripeChargeId, object.charge ?? null);
+  }
+  f.rows.push({ category: 'stripe-webhook-event-admission.events', record: externalSupportObservation() });
+  assert.equal((await f.resolve()).admitted, true);
+});
+
+test('shared original validator is public and distinguishes incomplete native evidence from explicit absence', async () => {
+  assert.equal(typeof originalService.isCompleteEventReceipt, 'function');
+  const f = await fixture(), native = f.rows[1].record;
+  assert.equal(originalService.isCompleteEventReceipt(native), true);
+  for (const field of Object.keys(originalService.projectEvent({ id: null, type: '', data: { object: {} } }))) {
+    const partial = copy(native); delete partial[field];
+    assert.equal(originalService.isCompleteEventReceipt(partial), false, field);
+  }
+  for (const field of ['type', 'livemode', 'signatureVerified', 'supported', 'eventContentDigest']) {
+    const partial = copy(native); delete partial[field];
+    assert.equal(originalService.isCompleteEventReceipt(partial), false, field);
+  }
+  let called = false;
+  const accessor = { ...native }; Object.defineProperty(accessor, 'stripeChargeId', { get() { called = true; return null; }, enumerable: true });
+  assert.equal(originalService.isCompleteEventReceipt(accessor), false); assert.equal(called, false);
+  const observed = []; Object.defineProperty(observed, '0', { get() { called = true; return 'sub_fixture'; }, enumerable: true });
+  assert.equal(originalService.isCompleteEventReceipt({ ...native, stripeSubscriptionIdsObserved: observed }), false);
+  assert.equal(called, false, 'structural admission must not execute a nested reference accessor');
+  assert.equal(originalService.isCompleteEventReceipt(Object.create(native)), false);
+  const support = externalSupportObservation(); assert.equal(originalService.isCompleteEventReceipt(support), true);
+  for (const field of ['type', 'livemode', 'stripePaymentLinkId']) {
+    const partial = { ...support }; delete partial[field]; assert.equal(originalService.isCompleteEventReceipt(partial), false);
+  }
+  assert.equal(originalService.isCompleteEventReceipt({ ...support, subscriptionId: 'sub_fixture' }), false);
+  for (const name of ['@red-cup-engineering/stripe-services-section', '@red-cup-engineering/stripe-services-section/service',
+    '@red-cup-engineering/stripe-services-section/subscription-access'])
+    assert.equal((await import(name)).isCompleteEventReceipt, originalService.isCompleteEventReceipt);
+});
+
+test('current receipt completeness preserves concurrent same-ID signed content conflicts when projection alone agrees', async () => {
+  const f = await fixture();
+  const first = f.event('evt_parallel_identity', 'customer.subscription.updated', { ...copy(f.objects.subscription), nativeUnprojectedFact: 'first' });
+  const second = f.event('evt_parallel_identity', 'customer.subscription.updated', { ...copy(f.objects.subscription), nativeUnprojectedFact: 'second' });
+  const admitted = await Promise.all([f.ingest(first), f.ingest(second)]);
+  assert.ok(admitted.every(result => result.accepted === true));
+  const records = f.rows.filter(row => row.record.stripeEventId === first.id).map(row => row.record);
+  assert.equal(records.length, 2); assert.notEqual(records[0].eventContentDigest, records[1].eventContentDigest);
+  assert.equal((await f.resolve()).reason, 'subscription-event-conflict');
+  delete records[1].eventContentDigest;
+  const result = await f.resolve(); assert.equal(result.admitted, false);
+  assert.equal(result.reason, 'subscription-event-journal-incomplete');
+  assert.equal(originalService.isCompleteEventReceipt(records[1]), false);
+  assert.equal(Object.hasOwn(records[1], 'eventContentDigest'), false, 'no invented historical raw-body identity');
+});
+
+test('non-native relation values cannot hide a retained dispute or credit note from current billing', async () => {
+  for (const [type, object, field, expected] of [
+    ['charge.dispute.created', { id: 'dp_domains', object: 'dispute', charge: 'ch_fixture' }, 'stripeChargeId', 'subscription-payment-disputed'],
+    ['credit_note.created', { id: 'cn_domains', object: 'credit_note', invoice: 'in_fixture' }, 'stripeCreditNoteInvoiceId', 'subscription-current-invoice-credit-note-unsupported'],
+  ]) for (const invalid of [42, {}, '', []]) {
+    const f = await fixture(); assert.equal((await f.resolve()).admitted, true);
+    await f.ingest(f.event('evt_relation_domain', type, object)); assert.equal((await f.resolve()).reason, expected);
+    const record = f.rows.find(row => row.record.stripeEventId === 'evt_relation_domain').record;
+    record[field] = invalid;
+    const result = await f.resolve(); assert.equal(result.admitted, false, `${field}: ${JSON.stringify(invalid)}`);
+    assert.equal(result.reason, 'subscription-event-journal-incomplete');
+    assert.equal(originalService.isCompleteEventReceipt(record), false);
+  }
+});
+
+test('non-native status values cannot hide a retained canceled subscription', async () => {
+  for (const invalid of [42, {}, '', []]) {
+    const f = await fixture();
+    await f.ingest(f.event('evt_canceled_domain', 'customer.subscription.updated', { ...copy(f.objects.subscription), status: 'canceled' }));
+    assert.equal((await f.resolve()).reason, 'subscription-revoked-by-verified-event');
+    const record = f.rows.find(row => row.record.stripeEventId === 'evt_canceled_domain').record;
+    record.status = invalid;
+    const result = await f.resolve(); assert.equal(result.admitted, false, JSON.stringify(invalid));
+    assert.equal(result.reason, 'subscription-event-journal-incomplete');
   }
 });

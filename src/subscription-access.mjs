@@ -51,12 +51,14 @@ async function readJson(response) {
   } finally { reader.releaseLock(); }
 }
 
-async function journal(store, category, limit) {
+async function journal(store, category, limit, isCompleteEventReceipt) {
   let rows;
   try { rows = await store.query({ category, limit: limit + 1, strict: true }); }
   catch { throw new Refusal('subscription-evidence-journal-unavailable'); }
   requireEvidence(Array.isArray(rows) && rows.length <= limit, 'subscription-evidence-journal-incomplete-or-too-large');
   requireEvidence(rows.every(row => row?.record && typeof row.record === 'object'), 'subscription-evidence-journal-invalid');
+  if (category === EVENT_CATEGORY) requireEvidence(rows.every(row => isCompleteEventReceipt(row.record)),
+    'subscription-event-journal-incomplete');
   return rows.map(row => row.record);
 }
 
@@ -187,7 +189,7 @@ function inspectCharge(intent, payment, invoice, state) {
 /** Receives only host-owned dependencies from service.mjs. No request body can
  * supply a credential, a store, an actor mapping or an offering scope. */
 export async function resolveCurrentSubscriptionBilling(input, context) {
-  const { key, catalog, store, digest, projectEvent, eventReceiptsAgree, validateLiveOffering, options } = context;
+  const { key, catalog, store, digest, projectEvent, eventReceiptsAgree, isCompleteEventReceipt, validateLiveOffering, options } = context;
   const started = performance.now();
   let timer;
   try {
@@ -212,7 +214,7 @@ export async function resolveCurrentSubscriptionBilling(input, context) {
     requireEvidence(remaining > 0, 'subscription-observation-timeout');
     const controller = new AbortController(), signal = controller.signal;
     timer = setTimeout(() => controller.abort(), Math.ceil(remaining));
-    const boundedJournal = name => withinBudget(() => journal(store, name, limit), signal);
+    const boundedJournal = name => withinBudget(() => journal(store, name, limit, isCompleteEventReceipt), signal);
     const receipts = await boundedJournal(CHECKOUT_CATEGORY);
     const receipt = selectCheckout(receipts, binding, catalog, digest);
     inspectEvents(await boundedJournal(EVENT_CATEGORY), binding, eventReceiptsAgree);
