@@ -400,6 +400,96 @@ export function projectEvent(event) {
     cancelAtPeriodEnd: typeof object.cancel_at_period_end === "boolean" ? object.cancel_at_period_end : null
   };
 }
+
+// The complete native field set belongs to this projector. An absent property
+// cannot be silently interpreted as the explicit null this projector emits
+// for an unknown relationship: that could erase a retained revocation before
+// the billing reader has even selected its related invoice or charge.
+const EVENT_PROJECTION_FIELDS = Object.freeze(Object.keys(projectEvent({ id: null, type: "", data: { object: {} } })));
+const receiptString = value => typeof value === "string" && value.length > 0 && value.length <= 2048;
+const receiptReference = (value, prefix) => typeof value === "string" && value.length <= 200
+  && new RegExp(`^${prefix}_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$`, "u").test(value);
+function ownDataRecord(value) {
+  return !!value && typeof value === "object" && [Object.prototype, null].includes(Object.getPrototypeOf(value))
+    && Reflect.ownKeys(value).every(key => typeof key === "string" && Object.hasOwn(Object.getOwnPropertyDescriptor(value, key), "value"));
+}
+function completeEventRelationships(record) {
+  // Reuse the projector's existing source admissions. Invalid JSON values
+  // must refuse, not be normalized to null and then disappear during related
+  // event selection. Null remains the original explicit unknown relation.
+  if (![["stripeChargeId", "ch"], ["stripeCreditNoteInvoiceId", "in"], ["subscriptionId", "sub"]]
+      .every(([field, prefix]) => record[field] === null || stripeSourceId(record[field], prefix) === record[field])) return false;
+  if (!["requestDigest", "offeringId", "customerSettlement"]
+      .every(field => record[field] === null || metadataValue(record[field]) === record[field])) return false;
+  if (!["stripeObjectId", "paymentIntentId", "invoiceId"]
+      .every(field => record[field] === null || typeof record[field] === "string")) return false;
+  // The billing reader uses status to retain a signed cancellation. A native
+  // absent status is null; a non-string stored value is not a current state.
+  if (record.status !== null && !receiptString(record.status)) return false;
+  const observed = record.stripeSubscriptionIdsObserved;
+  if (!["bound", "partial", "absent", "conflicting"].includes(record.subscriptionBindingStatus)
+      || !Array.isArray(observed) || observed.length > 2 || Reflect.ownKeys(observed).length !== observed.length + 1) return false;
+  let previous;
+  for (let index = 0; index < observed.length; index++) {
+    const descriptor = Object.getOwnPropertyDescriptor(observed, String(index));
+    if (!descriptor || !Object.hasOwn(descriptor, "value")) return false;
+    const value = descriptor.value;
+    if (typeof value !== "string" || stripeSourceId(value, "sub") !== value || index > 0 && !(previous < value)) return false;
+    previous = value;
+  }
+  return true;
+}
+
+// The established storefront's outside-catalog support observation shares the
+// original event category. It is explicitly nonbinding and is not a truncated
+// native projection. Admit only its original closed observation shape, with
+// no fields capable of claiming a subscription/order/payment relationship.
+const EXTERNAL_OBSERVATION_FIELDS = Object.freeze([
+  "id", "type", "schemaVersion", "stripeEventId", "eventType", "stripePaymentLinkId", "stripeCheckoutSessionId",
+  "amountTotal", "currency", "paymentStatus", "status", "livemode", "stripeEventCreatedAt", "signatureVerified",
+  "buyerPersonalDataRecorded", "rawBodyRecorded", "consequence",
+]);
+function completeExternalObservation(record) {
+  return Object.keys(record).length === EXTERNAL_OBSERVATION_FIELDS.length
+    && EXTERNAL_OBSERVATION_FIELDS.every(key => Object.hasOwn(record, key))
+    && record.schemaVersion === 1 && CHECKOUT_EVENTS.includes(record.eventType)
+    && record.id === `urn:stripe-event-receipt:${record.stripeEventId}`
+    && receiptReference(record.stripeEventId, "evt") && receiptReference(record.stripePaymentLinkId, "plink")
+    && receiptReference(record.stripeCheckoutSessionId, "cs")
+    && Number.isSafeInteger(record.amountTotal) && record.amountTotal >= 0
+    && typeof record.currency === "string" && /^[a-z]{3}$/u.test(record.currency)
+    && ["paid", "unpaid", "no_payment_required"].includes(record.paymentStatus) && record.status === "complete"
+    && typeof record.livemode === "boolean" && record.signatureVerified === true
+    && (record.stripeEventCreatedAt === null || Number.isSafeInteger(record.stripeEventCreatedAt) && record.stripeEventCreatedAt >= 0)
+    && record.buyerPersonalDataRecorded === false && record.rawBodyRecorded === false
+    && record.consequence === "outside-catalog-checkout-observed-not-group-treasury-settlement";
+}
+
+/** Structural completeness of an original event receipt for current billing.
+ * This does not verify an HMAC, stored-record content address or inventory.
+ * Native projections require every original projector field, including explicit
+ * nulls. Older incomplete records remain historical evidence and may still be
+ * compared by ingestWebhook; this function never migrates or fills them in. */
+export function isCompleteEventReceipt(record) {
+  if (!ownDataRecord(record)) return false;
+  if (record.type === "StripeExternalPaymentLinkObservation") return completeExternalObservation(record);
+  if (!["StripeWebhookEventReceipt", "StripeWebhookEventConflictReceipt"].includes(record.type)
+      || !EVENT_PROJECTION_FIELDS.every(key => Object.hasOwn(record, key))
+      || !["id", "type", "recordedAt", "supported", "signatureVerified", "rawBodyRecorded", "buyerPersonalDataRecorded", "consequence", "eventContentDigest"]
+        .every(key => Object.hasOwn(record, key))
+      || !completeEventRelationships(record)
+      || !receiptReference(record.stripeEventId, "evt") || !receiptString(record.eventType)
+      || typeof record.livemode !== "boolean" || record.signatureVerified !== true || typeof record.supported !== "boolean"
+      || typeof record.eventContentDigest !== "string" || !/^ni:\/\/\/sha-256;[A-Za-z0-9_-]{43}$/u.test(record.eventContentDigest)
+      || !receiptString(record.recordedAt) || !Number.isFinite(Date.parse(record.recordedAt))
+      || record.rawBodyRecorded !== false || record.buyerPersonalDataRecorded !== false) return false;
+  if (record.type === "StripeWebhookEventConflictReceipt") return record.conflict === true && record.supported === false
+    && record.id === `urn:stripe-event-conflict:${record.stripeEventId}:${record.eventContentDigest.slice("ni:///sha-256;".length)}`
+    && record.consequence === "conflicting-event-identity-must-not-authorize-access";
+  return record.id === `urn:stripe-event-receipt:${record.stripeEventId}` && record.conflict !== true
+    && typeof record.duplicate === "boolean"
+    && record.consequence === (record.supported ? "customer-settlement-must-independently-admit" : "ignored-unsupported-event");
+}
 export async function ingestWebhook({ rawBody, signatureHeader }, options = {}) {
   const env = options.env ?? process.env; const secret = env.STRIPE_WEBHOOK_SECRET; const now = options.now ?? new Date(); const nowSeconds = options.nowSeconds ?? Math.floor(now.getTime() / 1000);
   if (!secret) return { type: "StripeWebhookRefusal", reason: "webhook-secret-unavailable" };
@@ -442,6 +532,6 @@ export async function resolveSubscriptionAccess(input, options = {}) {
   const env = options.env ?? process.env;
   return resolveCurrentSubscriptionBilling(input, { key: stripeKey(env),
     catalog: options.catalog ?? loadCatalog(options.catalogPath), store: evidenceStore(options),
-    digest, projectEvent, eventReceiptsAgree, validateLiveOffering, options });
+    digest, projectEvent, eventReceiptsAgree, isCompleteEventReceipt, validateLiveOffering, options });
 }
 

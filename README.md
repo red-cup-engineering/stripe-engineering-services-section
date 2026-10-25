@@ -98,3 +98,10 @@ account-bound current paid-period observation for the host's recurring-contract
 resolver. It joins the original Checkout receipt and signed journal with current
 subscription, invoice-line and provider-payment evidence. It grants no product
 scope or subscriber identity. See [the contract and receiving limits](docs/SUBSCRIPTION-BILLING-EVIDENCE.md).
+
+Current billing checks complete original event projections before filtering by
+subscription, invoice or charge, using the shared `isCompleteEventReceipt`
+export. An absent relation field is refused rather than interpreted as a native
+null. Historical webhook retry comparison and original Checkout admission
+remain unchanged; the contract explains the nonbinding external-support variant
+and the separate strict storage-custody requirement.
