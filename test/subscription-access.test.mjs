@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { each } from '@red-cup-engineering/semiotic-eavt-services-section/store';
@@ -17,7 +17,8 @@ const copy = value => structuredClone(value);
 const NATIVE_EVENTS = 'stripe-webhook-event-admission-events';
 
 function damageNativeRecord(root, predicate, mode) {
-  const row = [...each(root, NATIVE_EVENTS, { strict: true })].find(({ record }) => predicate(record));
+  const rows = [...each(root, NATIVE_EVENTS, { strict: true })];
+  const row = rows.find(({ record }) => predicate(record));
   assert.ok(row, 'the target must be an originally verified native record');
   const file = recordFile(root, NATIVE_EVENTS, row.address);
   const lines = readFileSync(file, 'utf8').split('\n').filter(Boolean);
@@ -30,6 +31,15 @@ function damageNativeRecord(root, predicate, mode) {
   } else if (mode === 'unterminated') {
     const [line] = lines.splice(index, 1);
     writeFileSync(file, [...lines, line].join('\n'));
+    return;
+  } else if (mode === 'misplaced') {
+    const original = rows.find(({ record }) => record.stripeEventId === 'evt_fixture' && record.conflict !== true);
+    assert.ok(original);
+    const wrongBucket = recordFile(root, NATIVE_EVENTS, original.address);
+    assert.notEqual(file, wrongBucket, 'the fixture requires distinct original custody buckets');
+    const [line] = lines.splice(index, 1);
+    writeFileSync(file, lines.length ? lines.join('\n') + '\n' : '');
+    appendFileSync(wrongBucket, line + '\n'); // Keep the valid record and its real address; change only its custody location.
     return;
   } else assert.fail('unknown native corruption fixture');
   writeFileSync(file, lines.join('\n') + '\n');
@@ -349,7 +359,7 @@ test('default native SEAVT receipts and signed events receive the same billing e
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-for (const mode of ['malformed', 'unverifiable', 'unterminated']) {
+for (const mode of ['malformed', 'unverifiable', 'unterminated', 'misplaced']) {
   test(`native ${mode} revocation custody refuses before any provider read while the original binding remains intact`, async () => {
     const root = mkdtempSync(join(tmpdir(), 'stripe-subscription-corrupt-'));
     try {
