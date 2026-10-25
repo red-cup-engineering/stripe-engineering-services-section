@@ -1,6 +1,6 @@
 {
   "name": "@red-cup-engineering/stripe-services-section",
-  "version": "0.1.12",
+  "version": "0.2.0",
   "type": "module",
   "description": "A sovereign Group-owned Stripe Checkout and verified-event boundary with fixed offerings, idempotency, and provider-local receipts. Owns the Stripe business logic and credentials; the inbound HTTP listener that fronts it is stripe-webhook-receiver-activation in rsc-quiescent.",
   "repository": {
@@ -13,12 +13,13 @@
   "exports": {
     ".": "./src/service.mjs",
     "./service": "./src/service.mjs",
+    "./subscription-access": "./src/service.mjs",
     "./checkout-events": "./src/checkout-events.mjs",
     "./provisioning": "./src/provisioning.mjs",
     "./metroplat": "./src/metroplat.mjs"
   },
   "scripts": {
-    "check": "node --check src/checkout-events.mjs && node --check src/service.mjs && node --check src/cli.mjs && node --check src/provisioning.mjs && node --check test/service.test.mjs && node --check src/metroplat.mjs && node --check test/metroplat.test.mjs",
+    "check": "node --check src/checkout-events.mjs && node --check src/service.mjs && node --check src/subscription-access.mjs && node --check src/cli.mjs && node --check src/provisioning.mjs && node --check test/service.test.mjs && node --check test/subscription-access.test.mjs && node --check src/metroplat.mjs && node --check test/metroplat.test.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "engines": {
@@ -43,7 +44,9 @@
     "content/config",
     "test/service.test.mjs",
     "test/service-public-event-projection.test.mjs",
-    "test/subscription-binding.test.mjs"
+    "test/subscription-binding.test.mjs",
+    "test/subscription-access.test.mjs",
+    "docs/SUBSCRIPTION-BILLING-EVIDENCE.md"
   ],
   "funding": {
     "type": "individual",
@@ -52,6 +55,7 @@
   "receivingTests": [
     "test/service.test.mjs",
     "test/service-public-event-projection.test.mjs",
-    "test/subscription-binding.test.mjs"
+    "test/subscription-binding.test.mjs",
+    "test/subscription-access.test.mjs"
   ]
 }
