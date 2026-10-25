@@ -51,7 +51,7 @@ The source package still declares version `0.1.12`, and the original Shop depend
 
 **Invoice money units distinct from Checkout receipts:** The connected live Stripe merchant returns event API version `2016-07-06`. Its observed `invoice.paid` resources expose `amount_paid`, `amount_due`, `total`, `amount_remaining`, `billing_reason`, `period_start` and `period_end`, while completed Checkout Sessions expose `amount_total`. `src/service.mjs#projectEvent` preserves those provider distinctions in the existing privacy-minimal signed event receipt as `stripeInvoiceAmountPaidCents`, `stripeInvoiceAmountDueCents`, `stripeInvoiceTotalCents`, `stripeInvoiceAmountRemainingCents`, `stripeInvoiceBillingReason`, and Unix-second period fields, and retains `amountTotal` as the unchanged **Checkout** number. It accepts only nonnegative safe integer minor units; invalid, negative, nonnumeric or missing provider values are `null`, never an inferred payment. Original `stripePriceIdsObserved` and partial-collection status continue identifying whether the signed event actually names a qualified recurring price. Original `ingestWebhook` is the producer/writer to the existing `StripeWebhookEventReceipt` EAVT store—no shadow invoice JSON or separate speculative cash ledger is introduced.
 
-A Stripe `invoice.paid` event may also mark an out-of-band payment as paid; its invoice-level `amount_paid` is **not** necessarily the portion allocated to one program's price, net of fees, a provider payout, a bank credit or recognized 561 Group treasury earnings. Subscription/customer identity and private invoice URLs are not retained. The new native `test/service.test.mjs` cases exercise actual versioned event shapes and malformed/unknown numeric units. The existing Shop webhook is currently configured for Checkout completion only: this source repair does not install or retroactively receive recurring events, and a qualified provider/Shop consumer and independently authorized webhook event-scope update remain separate operating Work.
+A Stripe `invoice.paid` event may also mark an out-of-band payment as paid; its invoice-level `amount_paid` is **not** necessarily the portion allocated to one program's price, net of fees, a provider payout, a bank credit or recognized 561 Group treasury earnings. Private invoice URLs and buyer contact details are not retained. Source-carried subscription identity and the original order/actor metadata are retained as described below; they are not an entitlement. The new native `test/service.test.mjs` cases exercise actual versioned event shapes and malformed/unknown numeric units. The existing Shop webhook is currently configured for Checkout completion only: this source repair does not install or retroactively receive recurring events, and a qualified provider/Shop consumer and independently authorized webhook event-scope update remain separate operating Work.
 
 
 
@@ -62,5 +62,31 @@ This closes a concrete future receiving gap for existing Stripe-hosted Payment L
 This projection is **not an alternative checkout engine, webhook listener or money database**. The existing installed HTTP webhook receiver must be separately configured with a signed Stripe endpoint and its source-owned merchant context; changing this package alone will not cause Stripe to deliver new events. Its original test `node --test test/service.test.mjs` now exercises checkout, recurring-price, signed-writer/idempotency, PII and incomplete line-item refusals. No real provider event or settlement effect is performed by the tests.
 
 ## Source qualification
+
+### Subscription identity and billing periods
+
+The existing Checkout producer carries the order digest and offering into
+`subscription_data.metadata`; the invocation binds `customer_settlement` to
+the admitted ActivityStreams actor. Stripe does not copy Checkout metadata to
+its Subscription automatically. Weekly, monthly and annual plans use the
+same producer and verified-event journal.
+
+The original event projection reads both legacy invoice fields and
+`parent.subscription_details` (only with that parent type). Conflicting
+subscription/customer/order bindings return null binding fields and
+`subscriptionBindingStatus: "conflicting"`. A `bound` result requires a subscription identifier and all three order, offering and actor fields; incomplete metadata or a missing identifier stays `partial`. Current subscription item billing
+periods remain separate in `stripeSubscriptionItemsObserved`; the projection
+does not infer a common interval, complete collection, entitlement or treasury
+receipt. `stripeLineItemCoverage` retains the provider's collection coverage.
+The signed receiver remains the only webhook writer and its event identity
+still prevents duplicate recording.
+
+This is an authored correction to the existing provider boundary, qualified
+against [Stripe metadata](https://docs.stripe.com/metadata), the
+[invoice parent contract](https://docs.stripe.com/changelog/basil/2025-03-31/adds-new-parent-field-to-invoicing-objects),
+and [item billing periods](https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-subscription-current-period-start-and-end).
+It preserves the current account/API selection and introduces no live checkout,
+webhook registration or paid plan. The ASSIST access consumer must still join
+the original principal, offering scope and independently verified lifecycle.
 
 With the original registry dependencies installed, run `npm run check && npm test`. The new `test/metroplat.test.mjs` exercises native operation declarations, actor-binding, merchant and return-origin gates, test-mode session creation through an injected fake provider, and live-mode refusal. Independently qualify the exact published package, installed FeltOS/MetroPlat instance, MCP authorization and real merchant webhook before calling the application operational.

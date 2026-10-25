@@ -220,6 +220,10 @@ export function buildCheckoutSessionForm(offering, request, quantity, digestValu
   if (offering.mode === "subscription" && offering.recurring) {
     form.set("line_items[0][price_data][recurring][interval]", offering.recurring.interval);
     if (offering.recurring.intervalCount !== undefined) form.set("line_items[0][price_data][recurring][interval_count]", String(offering.recurring.intervalCount));
+    // Checkout metadata is not copied to the Subscription. Its later invoices
+    // need the same original order binding through subscription_data.metadata.
+    form.set("subscription_data[metadata][request_digest]", digestValue);
+    form.set("subscription_data[metadata][offering_id]", offering.id);
   }
   form.set("metadata[request_digest]", digestValue); form.set("metadata[offering_id]", offering.id);
   return form;
@@ -237,6 +241,7 @@ export async function invokeCheckout(activity, options = {}) {
   const request = offered.object.request;
   const form = buildCheckoutSessionForm(admitted.offering, request, admitted.quantity, expectedDigest);
   form.set("metadata[customer_settlement]", activity.actor);
+  if (admitted.offering.mode === "subscription") form.set("subscription_data[metadata][customer_settlement]", activity.actor);
   const fetchImpl = options.fetchImpl ?? fetch;
   let response;
   try { response = await fetchImpl("https://api.stripe.com/v1/checkout/sessions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded", "Idempotency-Key": offered.object.idempotencyKey }, body: form }); }
@@ -293,9 +298,57 @@ function signedEventPriceIdentities(eventType,object){
  * amount_total, a subscription-specific allocation, fees or settled cash. */
 const invoiceMinor=(value)=>Number.isSafeInteger(value)&&value>=0?value:null;
 const invoiceUnixSeconds=(value)=>Number.isSafeInteger(value)&&value>=0?value:null;
+
+const SUBSCRIPTION_BINDING_FIELDS = Object.freeze(["request_digest", "offering_id", "customer_settlement"]);
+const subscriptionReference = value => stripeSourceId(typeof value === "object" && value !== null ? value.id : value, "sub");
+const metadataValue = value => typeof value === "string" && value.length > 0 && value.length <= 500 ? value : null;
+function billingPeriod(object) {
+  const start = invoiceUnixSeconds(object?.current_period_start), end = invoiceUnixSeconds(object?.current_period_end);
+  return start !== null && end !== null && end > start
+    ? { currentPeriodStart: start, currentPeriodEnd: end }
+    : { currentPeriodStart: null, currentPeriodEnd: null };
+}
+
+/** Preserve the provider's current/legacy invoice relationship without treating
+ * metadata as payment, current membership or authority. Conflicting source
+ * bindings remain non-resolvable; never pick one customer's claim silently. */
+function subscriptionBinding(eventType, object) {
+  const isInvoice = typeof eventType === "string" && eventType.startsWith("invoice.");
+  const isSubscription = typeof eventType === "string" && eventType.startsWith("customer.subscription.");
+  const parent = isInvoice && object.parent?.type === "subscription_details" ? object.parent.subscription_details : null;
+  const metadataSources = [object.metadata, ...(isInvoice ? [object.subscription_details?.metadata, parent?.metadata] : [])];
+  const references = [
+    subscriptionReference(isSubscription ? object.id : object.subscription),
+    ...(isInvoice ? [subscriptionReference(parent?.subscription)] : []),
+  ].filter(value => value !== null);
+  const bindings = SUBSCRIPTION_BINDING_FIELDS.map(field => [...new Set(metadataSources.map(source => metadataValue(source?.[field])).filter(value => value !== null))]);
+  if (new Set(references).size > 1 || bindings.some(values => values.length > 1)) {
+    return { subscriptionId: null, subscriptionBindingStatus: "conflicting", requestDigest: null, offeringId: null, customerSettlement: null };
+  }
+  const [requestDigest, offeringId, customerSettlement] = bindings.map(values => values[0] ?? null);
+  return {
+    subscriptionId: references[0] ?? null,
+    subscriptionBindingStatus: references.length && bindings.every(values => values.length === 1) ? "bound" : references.length || bindings.some(values => values.length) ? "partial" : "absent",
+    requestDigest, offeringId, customerSettlement,
+  };
+}
+
+/** Since Stripe's 2025-03-31 API, billing periods belong to subscription
+ * items. Mixed intervals must not be widened into one subscription window. */
+function subscriptionItems(eventType, object) {
+  if (typeof eventType !== "string" || !eventType.startsWith("customer.subscription.") || !Array.isArray(object.items?.data)) return [];
+  return object.items.data.map(item => {
+    return {
+      stripeSubscriptionItemId: stripeSourceId(item?.id, "si"),
+      stripePriceId: stripeSourceId(item?.price?.id ?? item?.price, "price"),
+      stripeProductId: stripeSourceId(item?.price?.product, "prod"),
+      ...billingPeriod(item),
+    };
+  });
+}
+
 export function projectEvent(event) {
-  const object = event?.data?.object ?? {}; const metadata = object.metadata ?? {};
-  const isSubscriptionEvent = typeof event?.type === "string" && event.type.startsWith("customer.subscription.");
+  const object = event?.data?.object ?? {};
   const isInvoiceEvent = typeof event?.type === "string" && event.type.startsWith("invoice.");
   return {
     stripeEventId: event.id, eventType: event.type, created: event.created ?? null, livemode: event.livemode ?? null,
@@ -313,12 +366,11 @@ export function projectEvent(event) {
     stripePaymentLinkId: stripeSourceId(object.payment_link,'plink'),
     stripeBalanceTransactionId: stripeSourceId(object.balance_transaction,'txn'),
     ...signedEventPriceIdentities(event.type,object),
-    subscriptionId: typeof object.subscription === "string" ? object.subscription : (isSubscriptionEvent && typeof object.id === "string" ? object.id : null),
+    stripeSubscriptionItemsObserved: subscriptionItems(event.type, object),
+    ...subscriptionBinding(event.type, object),
     invoiceId: isInvoiceEvent && typeof object.id === "string" ? object.id : null,
-    currentPeriodStart: typeof object.current_period_start === "number" ? object.current_period_start : null,
-    currentPeriodEnd: typeof object.current_period_end === "number" ? object.current_period_end : null,
-    cancelAtPeriodEnd: typeof object.cancel_at_period_end === "boolean" ? object.cancel_at_period_end : null,
-    requestDigest: metadata.request_digest ?? null, offeringId: metadata.offering_id ?? null, customerSettlement: metadata.customer_settlement ?? null
+    ...billingPeriod(object),
+    cancelAtPeriodEnd: typeof object.cancel_at_period_end === "boolean" ? object.cancel_at_period_end : null
   };
 }
 export async function ingestWebhook({ rawBody, signatureHeader }, options = {}) {

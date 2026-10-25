@@ -42,7 +42,8 @@
     "src",
     "content/config",
     "test/service.test.mjs",
-    "test/service-public-event-projection.test.mjs"
+    "test/service-public-event-projection.test.mjs",
+    "test/subscription-binding.test.mjs"
   ],
   "funding": {
     "type": "individual",
@@ -50,6 +51,7 @@
   },
   "receivingTests": [
     "test/service.test.mjs",
-    "test/service-public-event-projection.test.mjs"
+    "test/service-public-event-projection.test.mjs",
+    "test/subscription-binding.test.mjs"
   ]
 }
