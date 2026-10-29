@@ -4,8 +4,9 @@ description: Provision a Stripe-hosted Checkout Session only from an admitted Ac
 requires-capabilities:
   - process-arrival
   - ledger-readings
----
+id: provisioning-authorized-checkout-sessions
 
+---
 # Provisioning authorized Checkout Sessions
 
 Use the **installed native Stripe package**, not an external ChatGPT Stripe connector. From this package's own current source root, invoke
