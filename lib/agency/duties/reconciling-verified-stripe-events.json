@@ -3,10 +3,6 @@
   "name": "reconciling verified Stripe events",
   "authority": "emsenn",
   "work": "reconciling-verified-stripe-events",
-  "from": "an untouched Stripe webhook body and Stripe-Signature header",
-  "to": "an idempotent minimal provider-owned event receipt or typed refusal",
-  "cost": "signature verification, durable local storage, and reconciliation attention",
-  "otherwise": "customer settlements cannot distinguish authenticated provider events from fabricated or replayed messages",
   "claim": "contracting-customer-settlement",
   "delegation": false,
   "skills": [

@@ -1,2 +1,8 @@
-{"id":"provisioning-authorized-checkout-sessions","name":"provision one authorized Stripe Checkout Session","from":"an admitted ActivityStreams request naming one fixed local offering and customer-owned redirect/order references","to":"a Stripe-hosted Checkout URL and minimal provider-owned session receipt","cost":"Stripe API use, provider compute, credential risk, and payment processing consideration","otherwise":"each customer settlement must separately custody merchant credentials or manually create payment links"}
-
+{
+  "id": "provisioning-authorized-checkout-sessions",
+  "name": "provision one authorized Stripe Checkout Session",
+  "from": "an admitted ActivityStreams request naming one fixed local offering and customer-owned redirect/order references",
+  "to": "a Stripe-hosted Checkout URL and minimal provider-owned session receipt",
+  "cost": "Stripe API use, provider compute, credential risk, and payment processing consideration",
+  "otherwise": "each customer settlement must separately custody merchant credentials or manually create payment links"
+}

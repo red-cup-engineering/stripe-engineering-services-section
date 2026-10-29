@@ -4,8 +4,9 @@ description: Verify and reconcile Stripe webhook events into minimal provider-ow
 requires-capabilities:
   - ledger-readings
   - ledger-reconciliation-proposal
----
+id: reconciling-verified-stripe-events
 
+---
 # Reconciling verified Stripe events
 
 The HTTP route is `POST /webhooks/stripe`. It must receive the untouched body
