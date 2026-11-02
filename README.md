@@ -1,4 +1,4 @@
-# Stripe — MetroPlat native application
+# @red-cup-engineering/stripe-engineering-services-section
 
 <!-- 561-group-standards:badges:start -->
 [![Red Cup Engineering](https://img.shields.io/badge/561%20Group-Red%20Cup%20Engineering-c0392b)](https://github.com/red-cup-engineering)
@@ -6,6 +6,8 @@
 [![Indigenous data: CARE](https://img.shields.io/badge/Indigenous%20data-CARE-4b6f44)](https://github.com/red-cup-engineering/.github/blob/main/GOVERNANCE.md)
 [![Tips welcome](https://img.shields.io/badge/tips-welcome-d4a017)](https://github.com/561-group/.github/blob/main/TIPS.md)
 <!-- 561-group-standards:badges:end -->
+
+A sovereign Group-owned Stripe Checkout and verified-event boundary with fixed offerings, idempotency, and provider-local receipts. Owns the Stripe business logic and credentials; the inbound HTTP listener that fronts it is stripe-webhook-receiver-activation in rsc-quiescent.
 
 This is the existing Group-owned Stripe Checkout service, not a separate ChatGPT/Stripe adapter. Source functions in `src/service.mjs` own the provider interaction, offering admission, HMAC webhook verification, idempotency and redacted receipts. `src/provisioning.mjs` owns assisted credential setup. MetroPlat installs the native application from this exact package export; it does not implement Stripe again.
 
