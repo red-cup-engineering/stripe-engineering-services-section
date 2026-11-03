@@ -19,7 +19,7 @@
     "./metroplat": "./src/metroplat.mjs"
   },
   "scripts": {
-    "check": "node --check src/checkout-events.mjs && node --check src/service.mjs && node --check src/subscription-access.mjs && node --check src/cli.mjs && node --check src/provisioning.mjs && node --check test/service.test.mjs && node --check test/subscription-access.test.mjs && node --check src/metroplat.mjs && node --check test/metroplat.test.mjs",
+    "check": "node --check src/checkout-events.mjs && node --check src/service.mjs && node --check src/subscription-access.mjs && node --check src/cli.mjs && node --check src/provisioning.mjs && node --check test/service.test.mjs && node --check test/subscription-access.test.mjs && node --check src/metroplat.mjs && node --check test/metroplat.test.mjs && node --check src/provider-balance-source.mjs && node --check src/provider-balance-readout.mjs && node --check test/provider-balance-source.test.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "engines": {
@@ -46,7 +46,8 @@
     "test/service-public-event-projection.test.mjs",
     "test/subscription-binding.test.mjs",
     "test/subscription-access.test.mjs",
-    "docs/SUBSCRIPTION-BILLING-EVIDENCE.md"
+    "docs/SUBSCRIPTION-BILLING-EVIDENCE.md",
+    "test/provider-balance-source.test.mjs"
   ],
   "funding": {
     "type": "individual",
@@ -56,6 +57,7 @@
     "test/service.test.mjs",
     "test/service-public-event-projection.test.mjs",
     "test/subscription-binding.test.mjs",
-    "test/subscription-access.test.mjs"
+    "test/subscription-access.test.mjs",
+    "test/provider-balance-source.test.mjs"
   ]
 }

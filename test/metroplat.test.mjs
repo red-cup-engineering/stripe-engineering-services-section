@@ -98,6 +98,33 @@ test('a stolen offer cannot change actors or create a checkout session', async t
   assert.equal(calls, 1);
 });
 
+test('read-only provider balance power requires deliberate merchant scope and authenticated actor', async t => {
+  assert.throws(() => make(t, {enableProviderBalanceReadout: true}), /exact original merchant account/);
+  assert.throws(() => make(t, {enableProviderBalanceReadout: 'yes'}), /must be boolean/);
+  let reads = 0;
+  const ops = make(t, {
+    enableProviderBalanceReadout: true, providerBalanceAccountId: 'acct_Source123',
+  }, {fetchImpl: async (url, options) => {
+    reads++;
+    assert.equal(options.method, 'GET');
+    assert.equal(new URL(url).origin, 'https://api.stripe.com');
+    const data = new URL(url).pathname === '/v1/account'
+      ? {object: 'account', id: 'acct_Source123'} : {data: [], has_more: false};
+    return {ok: true, json: async () => data};
+  }});
+  assert.equal(ops.at(-1).verb, 'stripe-provider-balance-read');
+  const read = {from: '2026-10-21T00:00:00Z', until: '2026-10-22T00:00:00Z', currency: 'usd'};
+  const denied = await call(ops, 'stripe-provider-balance-read', read, null);
+  assert.equal(denied.reason, 'authenticated-metroplat-subject-required');
+  assert.equal(reads, 0, 'unheld / unauthenticated actor causes no Stripe request');
+  const accepted = await call(ops, 'stripe-provider-balance-read', read);
+  assert.equal(accepted.type, 'StripeProviderBalanceReadout/v1');
+  assert.equal(accepted.accountIdentity, 'provider-verified-self-account');
+  assert.equal(accepted.recognizedRevenueCents, null);
+  assert.equal(accepted.bankCredit, 'unobserved');
+  assert.equal(reads, 5, 'four read-only list calls after exact own-account proof');
+});
+
 test('mounting a live key does not authorize live checkout', t => {
   let calls = 0;
   const operations = make(t, {}, { environment: { STRIPE_SECRET_KEY: 'rk_live_fixture_not_a_real_key' }, fetchImpl: async () => { calls++; throw Error('should not call'); } });
