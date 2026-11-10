@@ -1,6 +1,0 @@
-# installing-an-enterprise-in-codex: agents begin
-[agents]
-max_threads = 4
-max_depth = 1
-interrupt_message = true
-# installing-an-enterprise-in-codex: agents end
