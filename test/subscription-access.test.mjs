@@ -4,8 +4,8 @@ import { createHmac } from 'node:crypto';
 import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { each } from '@red-cup-engineering/semiotic-eavt-services-section/store';
-import { recordFile } from '@red-cup-engineering/semiotic-eavt-services-section/layout';
+import { each } from '@red-cup-engineering/semiotic-eavt-engineering-services-section/store';
+import { recordFile } from '@red-cup-engineering/semiotic-eavt-engineering-services-section/layout';
 import { ACTOR, digest, ingestWebhook, invokeCheckout, solicitCheckout, resolveSubscriptionAccess,
   SUBSCRIPTION_READ_API_VERSION } from '../src/service.mjs';
 import * as originalService from '../src/service.mjs';

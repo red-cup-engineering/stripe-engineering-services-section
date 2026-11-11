@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { each } from "@red-cup-engineering/semiotic-eavt-services-section/store";
+import { each } from "@red-cup-engineering/semiotic-eavt-engineering-services-section/store";
 
 import { ACTOR, buildCheckoutSessionForm, ingestWebhook, invokeCheckout, projectEvent, readiness, solicitCheckout, validateLiveOffering, validateOfferingShape, verifyStripeSignature } from "../src/service.mjs";
 import { CHECKOUT_EVENTS } from "../src/checkout-events.mjs";
