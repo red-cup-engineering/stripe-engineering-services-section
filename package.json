@@ -32,7 +32,7 @@
     "@red-cup-engineering/computer-data-engineering-services-section": "0.2.0",
     "@red-cup-engineering/assisted-browser-services-section": "0.2.2",
     "@red-cup-engineering/witness-journal-document-service": "0.1.2",
-    "@red-cup-engineering/computer-system-engine": "0.1.7"
+    "@red-cup-engineering/computer-engine": "^0.1.7"
   },
   "license": "MIT",
   "private": false,
