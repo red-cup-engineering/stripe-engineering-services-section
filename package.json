@@ -26,6 +26,7 @@
     "node": ">=22.18"
   },
   "dependencies": {
+    "@red-cup-engineering/computer-code-engine": "^0.1.0",
     "@red-cup-engineering/semiotic-eavt-engineering-services-section": "^0.6.0",
     "@red-cup-engineering/json-schema-services-section": "0.5.0",
     "@red-cup-engineering/computer-content-address-engineering-services-section": "0.2.0",
