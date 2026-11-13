@@ -112,7 +112,7 @@ The original service now exports `resolveSubscriptionAccess`, a read-only,
 account-bound current paid-period observation for the host's recurring-contract
 resolver. It joins the original Checkout receipt and signed journal with current
 subscription, invoice-line and provider-payment evidence. It grants no product
-scope or subscriber identity. See [the contract and receiving limits](docs/SUBSCRIPTION-BILLING-EVIDENCE.md).
+scope or subscriber identity. See [the contract and receiving limits](content/text/documents/articles/notes/2026/11/10/2026-11-10-note-on-subscription-billing-evidence.md).
 
 Current billing checks complete original event projections before filtering by
 subscription, invoice or charge, using the shared `isCompleteEventReceipt`

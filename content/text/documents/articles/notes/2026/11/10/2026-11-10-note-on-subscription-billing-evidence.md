@@ -1,4 +1,10 @@
-# Current subscription billing evidence
+---
+title: "Current subscription billing evidence"
+description: "resolveSubscriptionAccess is a read-only API of the original Stripe service."
+date-created: 2026-11-10
+type: note
+name: subscription-billing-evidence
+---
 
 `resolveSubscriptionAccess` is a read-only API of the original Stripe service.
 It supplies current billing evidence to a trusted host's recurring-contract

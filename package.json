@@ -47,7 +47,7 @@
     "test/service-public-event-projection.test.mjs",
     "test/subscription-binding.test.mjs",
     "test/subscription-access.test.mjs",
-    "docs/SUBSCRIPTION-BILLING-EVIDENCE.md",
+    "content/text/documents/articles/notes/2026/11/10/2026-11-10-note-on-subscription-billing-evidence.md",
     "test/provider-balance-source.test.mjs"
   ],
   "funding": {
