@@ -1,5 +1,5 @@
 {
-  "name": "@red-cup-engineering/stripe-services-section",
+  "name": "@red-cup-engineering/stripe-engineering-services-section",
   "version": "0.2.2",
   "type": "module",
   "description": "A sovereign Group-owned Stripe Checkout and verified-event boundary with fixed offerings, idempotency, and provider-local receipts. Owns the Stripe business logic and credentials; the inbound HTTP listener that fronts it is stripe-webhook-receiver-activation in rsc-quiescent.",
@@ -26,9 +26,9 @@
     "node": ">=22.18"
   },
   "dependencies": {
-    "@red-cup-engineering/computer-code-engine": "^0.1.0",
+    "@red-cup-engineering/typed-computer-code-engine": "^0.1.0",
     "@red-cup-engineering/semiotic-eavt-engineering-services-section": "^0.6.0",
-    "@red-cup-engineering/json-schema-services-section": "0.5.0",
+    "@red-cup-engineering/json-schema-engineering-services-section": "0.5.0",
     "@red-cup-engineering/computer-content-address-engineering-services-section": "0.2.0",
     "@red-cup-engineering/computer-data-engineering-services-section": "0.2.0",
     "@red-cup-engineering/assisted-browser-services-section": "0.2.2",

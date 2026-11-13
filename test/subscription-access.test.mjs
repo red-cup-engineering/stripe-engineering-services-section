@@ -547,8 +547,8 @@ test('shared original validator is public and distinguishes incomplete native ev
     const partial = { ...support }; delete partial[field]; assert.equal(originalService.isCompleteEventReceipt(partial), false);
   }
   assert.equal(originalService.isCompleteEventReceipt({ ...support, subscriptionId: 'sub_fixture' }), false);
-  for (const name of ['@red-cup-engineering/stripe-services-section', '@red-cup-engineering/stripe-services-section/service',
-    '@red-cup-engineering/stripe-services-section/subscription-access'])
+  for (const name of ['@red-cup-engineering/stripe-engineering-services-section', '@red-cup-engineering/stripe-engineering-services-section/service',
+    '@red-cup-engineering/stripe-engineering-services-section/subscription-access'])
     assert.equal((await import(name)).isCompleteEventReceipt, originalService.isCompleteEventReceipt);
 });
 

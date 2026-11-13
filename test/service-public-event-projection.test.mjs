@@ -4,8 +4,8 @@ import {readFileSync} from 'node:fs';
 import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {projectEvent as direct} from '../src/service.mjs';
-import {projectEvent as publicRoot} from '@red-cup-engineering/stripe-services-section';
-import {projectEvent as publicService} from '@red-cup-engineering/stripe-services-section/service';
+import {projectEvent as publicRoot} from '@red-cup-engineering/stripe-engineering-services-section';
+import {projectEvent as publicService} from '@red-cup-engineering/stripe-engineering-services-section/service';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const expectedFields=[

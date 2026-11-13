@@ -1,6 +1,6 @@
 /** Stripe's native MetroPlat application: no second host, dispatcher or credential bridge. */
 import { operation } from '@red-cup-engineering/computer-engine/rpc/operation';
-import { schemaFrom } from '@red-cup-engineering/json-schema-services-section/contracts';
+import { schemaFrom } from '@red-cup-engineering/json-schema-engineering-services-section/contracts';
 import {
   ACTOR, credentialMode, digest, invokeCheckout, loadCatalog, readiness, solicitCheckout,
 } from './service.mjs';

@@ -8,8 +8,8 @@ delivery. A successful result is not an access token or a fulfillment record.
 
 ## Public contract
 
-Import from `@red-cup-engineering/stripe-services-section/service` or
-`@red-cup-engineering/stripe-services-section/subscription-access`.
+Import from `@red-cup-engineering/stripe-engineering-services-section/service` or
+`@red-cup-engineering/stripe-engineering-services-section/subscription-access`.
 
 ```js
 const evidence = await resolveSubscriptionAccess({
