@@ -10,7 +10,7 @@ const ENDPOINTS = Object.freeze({
   payouts: '/v1/payouts',
   checkoutSessions: '/v1/checkout/sessions',
 });
-const refusal = reason => Object.freeze({type:'StripeProviderBalanceRefusal', reason});
+const rejection = reason => Object.freeze({type:'StripeProviderBalanceRefusal', reason});
 const validUtc = v => typeof v === 'string' &&
   /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(v) &&
   Number.isFinite(Date.parse(v)) && new Date(Date.parse(v)).toISOString() === v.slice(0, -1) + '.000Z';
@@ -23,15 +23,15 @@ export async function observeStripeProviderBalance({
   fetchImpl = fetch, maxPages = 4,
 } = {}) {
   const mode = modeOf(key);
-  if (!mode) return refusal('merchant-read-credential-unavailable');
+  if (!mode) return rejection('merchant-read-credential-unavailable');
   if (!/^acct_[A-Za-z0-9]+$/.test(expectedAccountId || ''))
-    return refusal('exact-merchant-account-required');
+    return rejection('exact-merchant-account-required');
   if (!/^[a-z]{3}$/.test(currency || '') || !validUtc(from) ||
       !validUtc(until) || !validUtc(observedAt) ||
       !(Date.parse(from) < Date.parse(until) && Date.parse(until) <= Date.parse(observedAt)))
-    return refusal('invalid-observation-window');
+    return rejection('invalid-observation-window');
   if (!Number.isSafeInteger(maxPages) || maxPages < 1 || maxPages > 10)
-    return refusal('unsafe-provider-page-budget');
+    return rejection('unsafe-provider-page-budget');
   const requestOptions = {method:'GET',headers:{Authorization:'Bearer ' + key}};
   async function get(path, query) {
     const u = new URL(path, 'https://api.stripe.com');
@@ -45,7 +45,7 @@ export async function observeStripeProviderBalance({
   }
   const account = await get('/v1/account');
   if (account?.object !== 'account' || account.id !== expectedAccountId)
-    return refusal('provider-account-proof-unavailable-or-mismatched');
+    return rejection('provider-account-proof-unavailable-or-mismatched');
   const pages = {};
   const start = Date.parse(from)/1000, stop = Date.parse(until)/1000;
   for (const [series, endpoint] of Object.entries(ENDPOINTS)) {
@@ -57,15 +57,15 @@ export async function observeStripeProviderBalance({
       if (cursor) query.starting_after=cursor;
       const response=await get(endpoint,query);
       if (!Array.isArray(response?.data) || typeof response.has_more !== 'boolean')
-        return refusal('provider-' + series + '-read-unavailable');
+        return rejection('provider-' + series + '-read-unavailable');
       if (response.data.some(r => !r || typeof r.id !== 'string' || !r.id ||
         (typeof r.livemode === 'boolean' && r.livemode !== (mode === 'live'))))
-        return refusal('provider-' + series + '-mode-or-identity-conflict');
+        return rejection('provider-' + series + '-mode-or-identity-conflict');
       data.push(...response.data);
       hasMore=response.has_more;
       if (!hasMore) break;
       const next=response.data.at(-1)?.id;
-      if (!next || next===cursor) return refusal('provider-' + series + '-pagination-nonprogress');
+      if (!next || next===cursor) return rejection('provider-' + series + '-pagination-nonprogress');
       cursor=next;
     }
     pages[series]={data,has_more:hasMore};
@@ -77,6 +77,6 @@ export async function observeStripeProviderBalance({
     return Object.freeze({...reading,accountIdentity:'provider-verified-self-account',
       legalPayee:'not-established-by-provider-account-id',credentialMaterialReturned:false});
   } catch {
-    return refusal('provider-balance-data-invalid-or-contradictory');
+    return rejection('provider-balance-data-invalid-or-contradictory');
   }
 }

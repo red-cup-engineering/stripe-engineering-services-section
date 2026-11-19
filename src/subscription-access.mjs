@@ -13,8 +13,8 @@ const reference = (value, prefix) => {
   return typeof id === 'string' && id.length <= 200 && new RegExp(`^${prefix}_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$`, 'u').test(id) ? id : null;
 };
 const completeSingle = value => value?.object === 'list' && value.has_more === false && Array.isArray(value.data) && value.data.length === 1;
-class Refusal extends Error { constructor(reason) { super(reason); this.reason = reason; } }
-const requireEvidence = (condition, reason) => { if (!condition) throw new Refusal(reason); };
+class Rejection extends Error { constructor(reason) { super(reason); this.reason = reason; } }
+const requireEvidence = (condition, reason) => { if (!condition) throw new Rejection(reason); };
 
 function withinBudget(operation, signal) {
   return new Promise((resolve, reject) => {
@@ -23,7 +23,7 @@ function withinBudget(operation, signal) {
       if (settled) return;
       settled = true; signal.removeEventListener('abort', abort); callback(value);
     };
-    const abort = () => settle(reject)(new Refusal('subscription-observation-timeout'));
+    const abort = () => settle(reject)(new Rejection('subscription-observation-timeout'));
     if (signal.aborted) return abort();
     signal.addEventListener('abort', abort, { once: true });
     Promise.resolve().then(operation).then(settle(resolve), settle(reject));
@@ -41,7 +41,7 @@ async function readJson(response) {
       bytes += value.byteLength;
       if (bytes > MAX_RESPONSE_BYTES) {
         await reader.cancel();
-        throw new Refusal('stripe-subscription-provider-response-too-large');
+        throw new Rejection('stripe-subscription-provider-response-too-large');
       }
       chunks.push(value);
     }
@@ -51,10 +51,10 @@ async function readJson(response) {
   } finally { reader.releaseLock(); }
 }
 
-async function journal(store, category, limit, isCompleteEventReceipt) {
+async function log(store, category, limit, isCompleteEventReceipt) {
   let rows;
   try { rows = await store.query({ category, limit: limit + 1, strict: true }); }
-  catch { throw new Refusal('subscription-evidence-journal-unavailable'); }
+  catch { throw new Rejection('subscription-evidence-journal-unavailable'); }
   requireEvidence(Array.isArray(rows) && rows.length <= limit, 'subscription-evidence-journal-incomplete-or-too-large');
   requireEvidence(rows.every(row => row?.record && typeof row.record === 'object'), 'subscription-evidence-journal-invalid');
   if (category === EVENT_CATEGORY) requireEvidence(rows.every(row => isCompleteEventReceipt(row.record)),
@@ -214,10 +214,10 @@ export async function resolveCurrentSubscriptionBilling(input, context) {
     requireEvidence(remaining > 0, 'subscription-observation-timeout');
     const controller = new AbortController(), signal = controller.signal;
     timer = setTimeout(() => controller.abort(), Math.ceil(remaining));
-    const boundedJournal = name => withinBudget(() => journal(store, name, limit, isCompleteEventReceipt), signal);
-    const receipts = await boundedJournal(CHECKOUT_CATEGORY);
+    const boundedLog = name => withinBudget(() => log(store, name, limit, isCompleteEventReceipt), signal);
+    const receipts = await boundedLog(CHECKOUT_CATEGORY);
     const receipt = selectCheckout(receipts, binding, catalog, digest);
-    inspectEvents(await boundedJournal(EVENT_CATEGORY), binding, eventReceiptsAgree);
+    inspectEvents(await boundedLog(EVENT_CATEGORY), binding, eventReceiptsAgree);
     const fetchImpl = options.fetchImpl ?? fetch;
     const get = (path, parameters = {}) => withinBudget(async () => {
       signal.throwIfAborted();
@@ -242,7 +242,7 @@ export async function resolveCurrentSubscriptionBilling(input, context) {
     const chargeId = inspectCharge(await get(`/v1/payment_intents/${encodeURIComponent(payment.paymentIntentId)}`, { 'expand[]': 'latest_charge' }), payment, invoice, state);
     const confirmed = inspectSubscription(await get(`/v1/subscriptions/${encodeURIComponent(binding.subscriptionId)}`), binding, offering, at, projectEvent);
     requireEvidence(digest(confirmed) === digest(state), 'subscription-changed-during-observation');
-    const eventIds = inspectEvents(await boundedJournal(EVENT_CATEGORY), binding, eventReceiptsAgree, { ...payment, ...invoice, chargeId });
+    const eventIds = inspectEvents(await boundedLog(EVENT_CATEGORY), binding, eventReceiptsAgree, { ...payment, ...invoice, chargeId });
     const elapsed = performance.now() - started, observedMs = nowMs + Math.ceil(elapsed);
     requireEvidence(elapsed <= timeoutMs && !signal.aborted, 'subscription-observation-timeout');
     requireEvidence(observedMs < state.expires * 1000, 'subscription-paid-period-not-current');
@@ -259,6 +259,6 @@ export async function resolveCurrentSubscriptionBilling(input, context) {
       authority: 'billing-evidence-only; host-authentication-and-product-scope-required', secretRecorded: false, buyerPersonalDataRecorded: false };
   } catch (error) {
     return { type: 'StripeSubscriptionBillingRefusal', admitted: false,
-      reason: error instanceof Refusal ? error.reason : 'stripe-subscription-observation-unavailable' };
+      reason: error instanceof Rejection ? error.reason : 'stripe-subscription-observation-unavailable' };
   } finally { clearTimeout(timer); }
 }
