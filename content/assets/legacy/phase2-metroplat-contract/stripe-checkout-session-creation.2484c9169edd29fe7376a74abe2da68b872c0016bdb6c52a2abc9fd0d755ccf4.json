@@ -1,0 +1,8 @@
+{
+  "kind": "metroplat.contract",
+  "id": "stripe-checkout-session-creation",
+  "precondition": {"id":"authorized-fixed-offering-request","description":"A customer settlement supplies an ActivityStreams solicitation naming one locally configured active offering, bounded quantity, HTTPS success/cancel URLs, and its own opaque order reference."},
+  "move": {"id":"create-checkout-session","domain":"activitystreams-checkout-solicitation-and-acceptance","codomain":"stripe-checkout-session-receipt-or-refusal","partial":true,"deterministic":false,"effects":["stripe-api-call","provider-local-append"]},
+  "postcondition": {"id":"session-and-receipt-returned","description":"The provider returns the Stripe-hosted Checkout URL, session identifier, request digest, and local receipt identifier. No buyer payment method or secret is stored."},
+  "invariants": ["server-side-secret-only","price-from-provider-catalog-not-caller","credential-mode-matches-offering-mode","idempotency-key-derived-from-request-digest","no-customer-settlement-write","no-entitlement-or-fulfillment-inference","no-refund-or-payout-authority"]
+}

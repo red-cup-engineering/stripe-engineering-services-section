@@ -1,0 +1,57 @@
+{
+  "name": "@red-cup-engineering/stripe-engineering-services-section",
+  "version": "0.2.5",
+  "type": "module",
+  "description": "A sovereign Group-owned Stripe Checkout and verified-event boundary with fixed offerings, idempotency, and provider-local receipts. Owns the Stripe business logic and credentials; the inbound HTTP listener that fronts it is stripe-webhook-receiver-activation in rsc-quiescent.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/red-cup-engineering/stripe-engineering-services-section.git"
+  },
+  "bin": {
+    "stripe-payment-acceptance": "./src/cli.mjs"
+  },
+  "exports": {
+    ".": "./src/service.mjs",
+    "./service": "./src/service.mjs",
+    "./subscription-access": "./src/service.mjs",
+    "./checkout-events": "./src/checkout-events.mjs",
+    "./provisioning": "./src/provisioning.mjs",
+    "./metroplat": "./src/metroplat.mjs"
+  },
+  "scripts": {
+    "check": "node --check src/checkout-events.mjs && node --check src/service.mjs && node --check src/subscription-access.mjs && node --check src/cli.mjs && node --check src/provisioning.mjs && node --check src/metroplat.mjs && node --check src/provider-balance-source.mjs && node --check src/provider-balance-readout.mjs"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "dependencies": {
+    "@red-cup-engineering/computer-code-engine": "^0.1.0",
+    "@red-cup-engineering/semiotic-eavt-engineering-services-section": "0.6.10",
+    "@red-cup-engineering/json-schema-engineering-services-section": "^0.5.8",
+    "@red-cup-engineering/computer-content-address-engineering-services-section": "^0.3.0",
+    "@red-cup-engineering/computer-data-engineering-services-section": "^0.7.4",
+    "@red-cup-engineering/assisted-browser-engineering-services-section": "^0.2.11",
+    "@red-cup-engineering/computer-engine": "^0.1.7"
+  },
+  "license": "MIT",
+  "private": false,
+  "files": [
+    "package.json",
+    "README*",
+    "LICENSE*",
+    "src",
+    "content/config",
+    "content/text/documents/articles/notes/2026/11/10/2026-11-10-note-on-subscription-billing-evidence.md"
+  ],
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/561-group/.github/blob/main/TIPS.md"
+  },
+  "receivingTests": [
+    "test/service.test.mjs",
+    "test/service-public-event-projection.test.mjs",
+    "test/subscription-binding.test.mjs",
+    "test/subscription-access.test.mjs",
+    "test/provider-balance-source.test.mjs"
+  ]
+}
