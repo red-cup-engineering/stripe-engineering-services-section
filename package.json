@@ -25,7 +25,8 @@
     "@red-cup-engineering/computer-content-address-engineering-services-section": "^0.3.0",
     "@red-cup-engineering/computer-data-engineering-services-section": "^0.7.4",
     "@red-cup-engineering/assisted-browser-engineering-services-section": "^0.2.11",
-    "@red-cup-engineering/computer-engine": "^0.1.7"
+    "@red-cup-engineering/computer-engine": "^0.1.7",
+    "@red-cup-engineering/signcell": "^0.18.0 || 0.18.1-dev.0"
   },
   "license": "MIT",
   "files": [

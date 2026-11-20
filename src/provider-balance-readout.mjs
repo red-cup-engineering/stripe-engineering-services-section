@@ -1,3 +1,4 @@
+import { isRecord } from "@red-cup-engineering/signcell/values";
 /**
  * Read-only, provider-native Stripe balance reconciliation. Uses snapshots
  * from the original Stripe API; no new checkout, webhook, store or ledger.
@@ -7,7 +8,7 @@
  * https://docs.stripe.com/reports/balance
  */
 const SERIES = ['balanceTransactions', 'charges', 'payouts', 'checkoutSessions'];
-const isObject = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+
 function minor(n) {
   if (!Number.isSafeInteger(n)) throw new TypeError('Money must be safe integer minor units');
   return n;
@@ -25,12 +26,12 @@ function utc(s) {
   return Date.parse(s) / 1000;
 }
 function selectPage(name, page, from, until, currency) {
-  if (!isObject(page) || !Array.isArray(page.data) || typeof page.has_more !== 'boolean')
+  if (!isRecord(page) || !Array.isArray(page.data) || typeof page.has_more !== 'boolean')
     throw new TypeError(name + ': actual list data and has_more required');
   const ids = new Set();
   let previous = Infinity;
   for (const r of page.data) {
-    if (!isObject(r) || typeof r.id !== 'string' || !r.id || ids.has(r.id))
+    if (!isRecord(r) || typeof r.id !== 'string' || !r.id || ids.has(r.id))
       throw new TypeError(name + ': duplicate/missing source identity');
     ids.add(r.id);
     if (!Number.isSafeInteger(r.created) || r.created < 0 || r.created > previous)
@@ -69,12 +70,12 @@ const newBucket = () => ({ count: 0, grossCents: 0, feeCents: 0, netCents: 0 });
  * or end, else monetary totals are null (unknown, not zero).
  */
 export function readStripeProviderBalance(input) {
-  if (!isObject(input) || !/^acct_[A-Za-z0-9]+$/.test(input.accountId || '')
+  if (!isRecord(input) || !/^acct_[A-Za-z0-9]+$/.test(input.accountId || '')
       || typeof input.livemode !== 'boolean' || !/^[a-z]{3}$/.test(input.currency || ''))
     throw new TypeError('Source account, live mode and exact currency required');
   const observed = utc(input.observedAt), from = utc(input.from), until = utc(input.until);
   if (from >= until || until > observed) throw new TypeError('Window exceeds read-only observation');
-  if (!isObject(input.pages) || SERIES.some(n => !isObject(input.pages[n])))
+  if (!isRecord(input.pages) || SERIES.some(n => !isRecord(input.pages[n])))
     throw new TypeError('Four actual provider list pages required');
   const pages = Object.fromEntries(SERIES.map(n =>
     [n, selectPage(n, input.pages[n], from, until, input.currency)]));
