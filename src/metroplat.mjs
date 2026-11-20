@@ -37,13 +37,13 @@ const output = schemaFrom({
   properties: { type: { type: 'string' } },
 });
 
-const validatedConfigurationKeys = new Set(['merchant', 'catalog', 'allowedReturnOrigins', 'allowLiveCheckout', 'enableProviderBalanceReadout', 'providerBalanceAccountId']);
+const admittedConfigurationKeys = new Set(['merchant', 'catalog', 'allowedReturnOrigins', 'allowLiveCheckout', 'enableProviderBalanceReadout', 'providerBalanceAccountId']);
 const secureOrigin = (value) => {
   if (typeof value !== 'string') return false;
   try { const url = new URL(value); return url.protocol === 'https:' && url.href === url.origin + '/'; }
   catch { return false; }
 };
-const rejected = (reason) => ({ type: 'StripeMetroplatRefusal', reason });
+const refused = (reason) => ({ type: 'StripeMetroplatRefusal', reason });
 const subjectOf = (context) => {
   const subject = context?.invocation?.subject;
   return typeof subject === 'string' && subject.length > 0 ? subject : null;
@@ -56,7 +56,7 @@ export function stripeMetroplatOperations(binding, options = {}) {
   }
   const configuration = options.configuration ?? {};
   if (!configuration || typeof configuration !== 'object' || Array.isArray(configuration)
-      || Object.keys(configuration).some(key => !validatedConfigurationKeys.has(key))) {
+      || Object.keys(configuration).some(key => !admittedConfigurationKeys.has(key))) {
     throw new TypeError('Stripe MetroPlat configuration accepts only merchant, catalog, allowedReturnOrigins and allowLiveCheckout');
   }
   const merchant = configuration.merchant;
@@ -107,9 +107,9 @@ export function stripeMetroplatOperations(binding, options = {}) {
       domain: checkoutInput, codomain: output, reads: ['stripe-merchant-offerings'],
       run: (request, _args, context) => {
         const actor = subjectOf(context);
-        if (!actor) return rejected('authenticated-metroplat-subject-required');
-        if (!redirectAllowed(request)) return rejected('checkout-return-origin-not-admitted');
-        if (!liveAllowed()) return rejected('stripe-live-checkout-not-enabled-by-instance');
+        if (!actor) return refused('authenticated-metroplat-subject-required');
+        if (!redirectAllowed(request)) return refused('checkout-return-origin-not-admitted');
+        if (!liveAllowed()) return refused('stripe-live-checkout-not-enabled-by-instance');
         const activity = {
           '@context': 'https://www.w3.org/ns/activitystreams',
           id: 'urn:metroplat:stripe:solicitation:' + digest({ actor, request }).split(';').at(-1),
@@ -126,11 +126,11 @@ export function stripeMetroplatOperations(binding, options = {}) {
       effects: { class: 'external', replay: 'idempotency-key', coordination: 'coordination-required', deterministic: 'unmeasured', totality: 'unmeasured' },
       run: ({ offer }, _args, context) => {
         const actor = subjectOf(context);
-        if (!actor) return rejected('authenticated-metroplat-subject-required');
-        if (!liveAllowed()) return rejected('stripe-live-checkout-not-enabled-by-instance');
+        if (!actor) return refused('authenticated-metroplat-subject-required');
+        if (!liveAllowed()) return refused('stripe-live-checkout-not-enabled-by-instance');
         // The authenticated hand, merchant catalog and permitted redirects are immutable to callers.
         if (offer?.type !== 'Offer' || offer.target !== actor || !redirectAllowed(offer.object?.request)) {
-          return rejected('stripe-offer-actor-or-redirect-not-admitted');
+          return refused('stripe-offer-actor-or-redirect-not-admitted');
         }
         const accepted = {
           '@context': 'https://www.w3.org/ns/activitystreams',
@@ -145,7 +145,7 @@ export function stripeMetroplatOperations(binding, options = {}) {
       summary: 'Read source-verified Stripe charges, fees, refunds and payouts without recognizing unreceived revenue.',
       domain: balanceReadInput, codomain: output, reads: ['stripe-provider-balance-account'],
       run: (input, _args, context) => {
-        if (!subjectOf(context)) return rejected('authenticated-metroplat-subject-required');
+        if (!subjectOf(context)) return refused('authenticated-metroplat-subject-required');
         return observeStripeProviderBalance({
           key: env.API_KEY_STRIPE || env.STRIPE_SECRET_KEY || '',
           expectedAccountId: configuration.providerBalanceAccountId,

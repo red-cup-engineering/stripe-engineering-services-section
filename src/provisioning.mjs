@@ -79,12 +79,12 @@ export async function armCheckout({ surface, webhookUrl, merchant, mode = "live"
     const keep = async (step, value) => { await store(SECRET_NAMES[step], value); receipt.stored.push(SECRET_NAMES[step]); };
     // Ask until the pasted value passes `check`; the reason a value was refused heads the next ask.
     const obtain = async (text, options, check) => {
-      for (let rejection = ""; ;) {
-        const answer = await guide.show(`${rejection}${text}`, options);
+      for (let refusal = ""; ;) {
+        const answer = await guide.show(`${refusal}${text}`, options);
         if (answer.label !== options.labels[0]) throw stopped();
         const checked = await check(answer.value);
         if (checked.ok) return answer.value;
-        rejection = `That was not used: ${checked.reason}.\n\n`;
+        refusal = `That was not used: ${checked.reason}.\n\n`;
       }
     };
 

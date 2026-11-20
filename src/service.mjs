@@ -59,7 +59,7 @@ function stripeKey(env) { return env.API_KEY_STRIPE || env.STRIPE_SECRET_KEY || 
 export function readiness({ env = process.env, catalog = loadCatalog() } = {}) {
   const mode = credentialMode(stripeKey(env));
   const liveOfferings = catalog.offerings.filter((offering) => offering.status === "live");
-  const liveValidations = liveOfferings.map((offering) => ({ id: offering.id, ...validateLiveOffering(offering) }));
+  const liveQualifications = liveOfferings.map((offering) => ({ id: offering.id, ...validateLiveOffering(offering) }));
   return {
     type: "StripePaymentAcceptanceReadiness",
     actor: ACTOR,
@@ -69,10 +69,10 @@ export function readiness({ env = process.env, catalog = loadCatalog() } = {}) {
     customerContractTokenPresent: Boolean(env.STRIPE_CUSTOMER_CONTRACT_TOKEN),
     offerings: catalog.offerings.map(({ id, status, mode: offeringMode, currency, unitAmount, recurring, customerChosenAmount }) => ({ id, status, mode: offeringMode, currency, unitAmount, ...(recurring ? { recurring } : {}), ...(customerChosenAmount ? { customerChosenAmount } : {}) })),
     liveReadinessBasis: "local-policy-only; provider account, payout and webhook delivery still require independent receiving",
-    liveQualifications: liveValidations,
+    liveQualifications,
     liveReady: mode === "live" && Boolean(env.STRIPE_WEBHOOK_SECRET) && Boolean(env.STRIPE_CUSTOMER_CONTRACT_TOKEN)
       && typeof catalog.merchant?.legalBody === "string" && catalog.merchant.legalBody.trim() !== ""
-      && liveValidations.some((validation) => validation.valid),
+      && liveQualifications.some((qualification) => qualification.valid),
     secretsDisclosed: false
   };
 }
@@ -166,11 +166,11 @@ export function solicitCheckout(activity, options = {}) {
   if (activity?.type !== "Offer" || activity?.target !== ACTOR) return reject(activity, "invalid-checkout-solicitation-envelope");
   if (mode === "absent" || mode === "unknown") return reject(activity, "stripe-credential-unavailable-or-unrecognized");
   const request = requestFrom(activity);
-  const validated = validateRequest(request, catalog, mode);
-  if (!validated.offering) return reject(activity, validated.reason);
+  const admitted = validateRequest(request, catalog, mode);
+  if (!admitted.offering) return reject(activity, admitted.reason);
   if (mode === "live" && !readiness({ env: options.env ?? process.env, catalog }).liveReady) return reject(activity, "stripe-live-activation-not-ready");
-  const requestDigest = digest({ actor: activity.actor, request, offering: validated.offering });
-  return reply("Offer", activity, { type: "ExecutableServiceOffer", request, requestDigest, offering: validated.offering, idempotencyKey: requestDigest.replace("ni:///sha-256;", "checkout-"), credentialMode: mode });
+  const requestDigest = digest({ actor: activity.actor, request, offering: admitted.offering });
+  return reply("Offer", activity, { type: "ExecutableServiceOffer", request, requestDigest, offering: admitted.offering, idempotencyKey: requestDigest.replace("ni:///sha-256;", "checkout-"), credentialMode: mode });
 }
 
 /**
@@ -248,15 +248,15 @@ export async function invokeCheckout(activity, options = {}) {
   const env = options.env ?? process.env; const catalog = options.catalog ?? loadCatalog(options.catalogPath); const key = stripeKey(env); const mode = credentialMode(key);
   const offered = activity?.object?.offer;
   if (activity?.type !== "Accept" || activity?.target !== ACTOR || offered?.type !== "Offer" || offered?.actor !== ACTOR || offered?.target !== activity.actor) return reject(activity, "invalid-checkout-acceptance-envelope");
-  const validated = validateRequest(offered.object.request, catalog, mode);
-  if (!validated.offering) return reject(activity, validated.reason);
+  const admitted = validateRequest(offered.object.request, catalog, mode);
+  if (!admitted.offering) return reject(activity, admitted.reason);
   if (mode === "live" && !readiness({ env, catalog }).liveReady) return reject(activity, "stripe-live-activation-not-ready");
-  const expectedDigest = digest({ actor: activity.actor, request: offered.object.request, offering: validated.offering });
+  const expectedDigest = digest({ actor: activity.actor, request: offered.object.request, offering: admitted.offering });
   if (offered.object.requestDigest !== expectedDigest || offered.object.idempotencyKey !== expectedDigest.replace("ni:///sha-256;", "checkout-")) return reject(activity, "provider-offer-digest-mismatch");
   const request = offered.object.request;
-  const form = buildCheckoutSessionForm(validated.offering, request, validated.quantity, expectedDigest);
+  const form = buildCheckoutSessionForm(admitted.offering, request, admitted.quantity, expectedDigest);
   form.set("metadata[customer_settlement]", activity.actor);
-  if (validated.offering.mode === "subscription") form.set("subscription_data[metadata][customer_settlement]", activity.actor);
+  if (admitted.offering.mode === "subscription") form.set("subscription_data[metadata][customer_settlement]", activity.actor);
   const fetchImpl = options.fetchImpl ?? fetch;
   let response;
   try { response = await fetchImpl("https://api.stripe.com/v1/checkout/sessions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded", "Idempotency-Key": offered.object.idempotencyKey }, body: form }); }
@@ -264,7 +264,7 @@ export async function invokeCheckout(activity, options = {}) {
   let body; try { body = await response.json(); } catch { return reject(activity, "stripe-api-invalid-response"); }
   if (!response.ok) return reject(activity, "stripe-api-refusal", { status: response.status, code: body?.error?.code ?? null, type: body?.error?.type ?? null });
   if (typeof body?.id !== "string" || typeof body?.url !== "string") return reject(activity, "stripe-api-incomplete-session");
-  const now = options.now ?? new Date(); const receipt = { id: `urn:stripe-checkout-receipt:${body.id}`, type: "StripeCheckoutSessionReceipt", recordedAt: now.toISOString(), legalMerchant: catalog.merchant.legalBody, customerSettlement: activity.actor, offeringId: validated.offering.id, requestDigest: expectedDigest, stripeSessionId: body.id, stripeMode: mode, amountTotal: body.amount_total ?? (validated.offering.unitAmount !== undefined ? validated.offering.unitAmount * validated.quantity : null), currency: body.currency ?? validated.offering.currency, paymentStatus: body.payment_status ?? "unpaid", status: body.status ?? "open", expiresAt: body.expires_at ?? null, secretRecorded: false, buyerPaymentDataRecorded: false };
+  const now = options.now ?? new Date(); const receipt = { id: `urn:stripe-checkout-receipt:${body.id}`, type: "StripeCheckoutSessionReceipt", recordedAt: now.toISOString(), legalMerchant: catalog.merchant.legalBody, customerSettlement: activity.actor, offeringId: admitted.offering.id, requestDigest: expectedDigest, stripeSessionId: body.id, stripeMode: mode, amountTotal: body.amount_total ?? (admitted.offering.unitAmount !== undefined ? admitted.offering.unitAmount * admitted.quantity : null), currency: body.currency ?? admitted.offering.currency, paymentStatus: body.payment_status ?? "unpaid", status: body.status ?? "open", expiresAt: body.expires_at ?? null, secretRecorded: false, buyerPaymentDataRecorded: false };
   await appendRecord(options, env, now, receipt, "stripe-checkout-session-creation", "receipts");
   return reply("Accept", activity, { ...receipt, checkoutUrl: body.url });
 }
