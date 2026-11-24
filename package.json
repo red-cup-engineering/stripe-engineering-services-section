@@ -1,0 +1,40 @@
+{
+  "name": "@red-cup-engineering/stripe-engineering-services-section",
+  "version": "0.2.5",
+  "type": "module",
+  "description": "A sovereign Group-owned Stripe Checkout and verified-event boundary with fixed offerings, idempotency, and provider-local receipts. Owns the Stripe business logic and credentials; the inbound HTTP listener that fronts it is stripe-webhook-receiver-activation in rsc-quiescent.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/red-cup-engineering/stripe-engineering-services-section.git"
+  },
+  "bin": {
+    "stripe-payment-acceptance": "./src/cli.mjs"
+  },
+  "exports": {
+    ".": "./src/service.mjs",
+    "./service": "./src/service.mjs",
+    "./subscription-access": "./src/service.mjs",
+    "./checkout-events": "./src/checkout-events.mjs",
+    "./provisioning": "./src/provisioning.mjs",
+    "./metroplat": "./src/metroplat.mjs"
+  },
+  "dependencies": {
+    "@red-cup-engineering/computer-code-engine": "^0.1.0",
+    "@red-cup-engineering/semiotic-eavt-engineering-services-section": "0.6.10",
+    "@red-cup-engineering/json-schema-engineering-services-section": "^0.5.8",
+    "@red-cup-engineering/computer-content-address-engineering-services-section": "^0.3.0",
+    "@red-cup-engineering/computer-data-engineering-services-section": "^0.7.4",
+    "@red-cup-engineering/assisted-browser-engineering-services-section": "^0.2.11",
+    "@red-cup-engineering/computer-engine": "^0.1.7",
+    "@red-cup-engineering/signcell": "^0.18.0 || 0.18.1-dev.0"
+  },
+  "license": "MIT",
+  "files": [
+    "package.json",
+    "README*",
+    "LICENSE*",
+    "src",
+    "content/config",
+    "content/text/documents/articles/notes/2026/11/10/2026-11-10-note-on-subscription-billing-evidence.md"
+  ]
+}
