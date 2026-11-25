@@ -32,7 +32,6 @@ const SUPPORTED_EVENTS = new Set([
 ]);
 const RECURRING_INTERVALS = new Set(["day", "week", "month", "year"]);
 
-export function digest(value) { return identifyJsonSemanticContent({ objectKind: "stripe.payment-service-record", value, witnessRoot: EMPTY_WITNESS_ROOT }).id; }
 function reply(type, activity, object) { return { "@context": "https://www.w3.org/ns/activitystreams", id: `${activity?.id ?? `urn:request:${Date.now()}`}:${type.toLowerCase()}`, type, actor: ACTOR, target: activity?.actor, inReplyTo: activity?.id, object }; }
 function reject(activity, reason, detail = undefined) { return reply("Reject", activity, { type: "ServiceRefusal", reason, ...(detail === undefined ? {} : { detail }) }); }
 
@@ -169,7 +168,7 @@ export function solicitCheckout(activity, options = {}) {
   const admitted = validateRequest(request, catalog, mode);
   if (!admitted.offering) return reject(activity, admitted.reason);
   if (mode === "live" && !readiness({ env: options.env ?? process.env, catalog }).liveReady) return reject(activity, "stripe-live-activation-not-ready");
-  const requestDigest = digest({ actor: activity.actor, request, offering: admitted.offering });
+  const requestDigest = identifyJsonSemanticContent({ objectKind: "stripe.payment-service-record", value: { actor: activity.actor, request, offering: admitted.offering }, witnessRoot: EMPTY_WITNESS_ROOT }).id;
   return reply("Offer", activity, { type: "ExecutableServiceOffer", request, requestDigest, offering: admitted.offering, idempotencyKey: requestDigest.replace("ni:///sha-256;", "checkout-"), credentialMode: mode });
 }
 
@@ -251,7 +250,7 @@ export async function invokeCheckout(activity, options = {}) {
   const admitted = validateRequest(offered.object.request, catalog, mode);
   if (!admitted.offering) return reject(activity, admitted.reason);
   if (mode === "live" && !readiness({ env, catalog }).liveReady) return reject(activity, "stripe-live-activation-not-ready");
-  const expectedDigest = digest({ actor: activity.actor, request: offered.object.request, offering: admitted.offering });
+  const expectedDigest = identifyJsonSemanticContent({ objectKind: "stripe.payment-service-record", value: { actor: activity.actor, request: offered.object.request, offering: admitted.offering }, witnessRoot: EMPTY_WITNESS_ROOT }).id;
   if (offered.object.requestDigest !== expectedDigest || offered.object.idempotencyKey !== expectedDigest.replace("ni:///sha-256;", "checkout-")) return reject(activity, "provider-offer-digest-mismatch");
   const request = offered.object.request;
   const form = buildCheckoutSessionForm(admitted.offering, request, admitted.quantity, expectedDigest);
@@ -283,7 +282,7 @@ function eventReceiptsAgree(left, right) {
   // fields they actually retained; do not invent a historical payload digest.
   const keys = Object.keys(projectEvent({ id: null, type: '', data: { object: {} } }))
     .filter(key => Object.hasOwn(left, key) && Object.hasOwn(right, key));
-  return keys.every(key => digest(left[key]) === digest(right[key]));
+  return keys.every(key => identifyJsonSemanticContent({ objectKind: "stripe.payment-service-record", value: left[key], witnessRoot: EMPTY_WITNESS_ROOT }).id === identifyJsonSemanticContent({ objectKind: "stripe.payment-service-record", value: right[key], witnessRoot: EMPTY_WITNESS_ROOT }).id);
 }
 /**
  * Projects a raw Stripe webhook event onto the redacted, no-PII shape this
@@ -497,7 +496,7 @@ export async function ingestWebhook({ rawBody, signatureHeader }, options = {}) 
   if (!verifyStripeSignature({ rawBody, signatureHeader, secret, toleranceSeconds: options.toleranceSeconds ?? 300, now: nowSeconds })) return { type: "StripeWebhookRefusal", reason: "invalid-or-stale-stripe-signature" };
   let event; try { event = JSON.parse(rawBody); } catch { return { type: "StripeWebhookRefusal", reason: "invalid-json-after-signature-verification" }; }
   if (typeof event?.id !== "string" || typeof event?.type !== "string") return { type: "StripeWebhookRefusal", reason: "invalid-stripe-event-shape" };
-  const provider = evidenceStore(options), projection = projectEvent(event), eventContentDigest = digest(event);
+  const provider = evidenceStore(options), projection = projectEvent(event), eventContentDigest = identifyJsonSemanticContent({ objectKind: "stripe.payment-service-record", value: event, witnessRoot: EMPTY_WITNESS_ROOT }).id;
   const identity = { ...projection, eventContentDigest };
   let prior;
   try {

@@ -1,9 +1,8 @@
+import { EMPTY_WITNESS_ROOT, identifyJsonSemanticContent } from "@red-cup-engineering/semantic-content-identify-service";
 /** Stripe's native MetroPlat application: no second host, dispatcher or credential bridge. */
 import { operation } from '@red-cup-engineering/computer-engine/rpc/operation';
 import { schemaFrom } from '@red-cup-engineering/json-schema-engineering-services-section/contracts';
-import {
-  ACTOR, credentialMode, digest, invokeCheckout, loadCatalog, readiness, solicitCheckout,
-} from './service.mjs';
+import { ACTOR, credentialMode, invokeCheckout, loadCatalog, readiness, solicitCheckout } from './service.mjs';
 import {observeStripeProviderBalance} from './provider-balance-source.mjs';
 
 const emptyInput = schemaFrom({
@@ -112,7 +111,7 @@ export function stripeMetroplatOperations(binding, options = {}) {
         if (!liveAllowed()) return refused('stripe-live-checkout-not-enabled-by-instance');
         const activity = {
           '@context': 'https://www.w3.org/ns/activitystreams',
-          id: 'urn:metroplat:stripe:solicitation:' + digest({ actor, request }).split(';').at(-1),
+          id: 'urn:metroplat:stripe:solicitation:' + identifyJsonSemanticContent({ objectKind: "stripe.payment-service-record", value: { actor, request }, witnessRoot: EMPTY_WITNESS_ROOT }).id.split(';').at(-1),
           type: 'Offer', actor, target: ACTOR,
           object: { type: 'ServiceSolicitation', request },
         };
@@ -134,7 +133,7 @@ export function stripeMetroplatOperations(binding, options = {}) {
         }
         const accepted = {
           '@context': 'https://www.w3.org/ns/activitystreams',
-          id: 'urn:metroplat:stripe:acceptance:' + digest({ actor, offer }).split(';').at(-1),
+          id: 'urn:metroplat:stripe:acceptance:' + identifyJsonSemanticContent({ objectKind: "stripe.payment-service-record", value: { actor, offer }, witnessRoot: EMPTY_WITNESS_ROOT }).id.split(';').at(-1),
           type: 'Accept', actor, target: ACTOR, object: { offer },
         };
         return invokeCheckout(accepted, { ...serviceOptions, ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}) });
